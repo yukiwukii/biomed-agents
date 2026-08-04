@@ -1,5 +1,7 @@
 # hypotest
 
+Derived from [EdisonScientific/hypotest](https://github.com/EdisonScientific/hypotest), Apache-2.0.
+
 ## Installation
 
 ```bash
