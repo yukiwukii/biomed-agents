@@ -921,3 +921,68 @@ class TestRubricGrading:
 
             finally:
                 await env.close()
+
+
+class TestDeterministicGrading:
+    """Scoring with no LLM: the bioagent-bench judge (needs_model=False) end to end."""
+
+    TRUTH_DIR = pathlib.Path(__file__).resolve().parent.parent / "capsules" / "bioagent-bench" / "_truth" / "deseq"
+
+    PROBLEM = ProblemInstance(
+        id=UUID("87654321-4321-8765-4321-876543218765"),
+        hypothesis="Which genes are up-regulated in biofilm relative to planktonic?",
+        protocol="Analyze the counts and save the table to results/.",
+        rubric="1. (10 points) Unused — this dataset is scored deterministically.",
+        max_points=10,
+        task_style="question",
+        judge="bioagent",
+        metadata={"task_id": "deseq", "upstream_result_rule": "at least five gene_id values overlap"},
+    )
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not TRUTH_DIR.is_dir(), reason="bioagent-bench truth files not staged")
+    @pytest.mark.parametrize(
+        ("write_results", "expected_reward"),
+        [pytest.param(True, 1.0, id="matching_output"), pytest.param(False, 0.0, id="no_output")],
+    )
+    async def test_scores_without_a_rubric_model(self, write_results: bool, expected_reward: float):
+        """rubric_model=None must still score: the judge declares needs_model=False."""
+        truth_csv = self.TRUTH_DIR / "up_regulated_genes.csv"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = pathlib.Path(tmp)
+            env = InterpreterEnv(
+                problem=self.PROBLEM,
+                work_dir=work_dir,
+                rubric_model=None,
+                truth_dir=self.TRUTH_DIR,
+                config=InterpreterEnvConfig(language=NBLanguage.PYTHON),
+            )
+
+            try:
+                await env.reset()
+
+                if write_results:
+                    # The agent writes its table to results/, as the task prompt instructs.
+                    code = (
+                        "import pathlib\n"
+                        "pathlib.Path('results').mkdir(exist_ok=True)\n"
+                        f"pathlib.Path('results/up.csv').write_text({truth_csv.read_text()[:4000]!r})\n"
+                    )
+                    await env.step(ToolRequestMessage(tool_calls=[ToolCall.from_name("run_cell", code=code)]))
+
+                submit = ToolRequestMessage(tool_calls=[ToolCall.from_name("submit_answer", answer="done")])
+                _, reward, done, _ = await env.step(submit)
+
+                assert done is True
+                assert reward == expected_reward
+                assert env.state.raw_score == int(expected_reward)
+
+                score_info = json.loads(env.score_info_path.read_text())
+                assert score_info["grading_method"] == "bioagent"
+                assert score_info["max_score"] == 1  # judge overrides the problem's max_points of 10
+                assert "prompt" not in score_info  # no LLM call was made
+                assert score_info["task_id"] == "deseq"
+
+            finally:
+                await env.close()

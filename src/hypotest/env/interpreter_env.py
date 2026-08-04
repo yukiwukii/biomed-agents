@@ -22,7 +22,6 @@ from pathlib import Path
 from tempfile import mkdtemp
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, cast
-from uuid import UUID
 
 import aiodocker
 import httpx
@@ -41,13 +40,24 @@ from aviary.core import (
 from aviary.env import Environment
 from lmi import LiteLLMModel
 from nbformat import NotebookNode
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field
 
 from . import config as cfg
 from .code_safety import check_code_safety
 from .config import ExecutionConfig
 from .interpreter import ExecutionResult, Interpreter
-from .prompts import CORRECT_MSG, HYPOTHESIS_TASK_DESC, INCORRECT_MSG, RUBRIC_SCORE_PROMPT, PromptingConfig
+from .judges import JudgeContext, derive_first_wrong_step, parse_criterion_max_scores, resolve_judge
+from .judges.biomni import CriterionLevelScore, RubricLevelScore  # noqa: F401  (re-exported)
+from .judges.hypotest_judge import CriterionScore, RubricScore  # noqa: F401  (re-exported)
+from .problem import ProblemInstance
+from .prompts import (
+    CORRECT_MSG,
+    HYPOTHESIS_TASK_DESC,
+    INCORRECT_MSG,
+    NO_PROTOCOL_MSG,
+    RESEARCH_QUESTION_TASK_DESC,
+    PromptingConfig,
+)
 from .tools.filesystem import FilesystemTool
 from .utils import NBLanguage, view_notebook
 
@@ -275,23 +285,10 @@ async def _kill_process_group(
         logger.exception("[%s] Process pid=%d still alive after SIGKILL — possible zombie", label, proc.pid)
 
 
-class ProblemInstance(BaseModel):
-    id: UUID
-    hypothesis: str
-    protocol: str
-    accepted: bool = Field(alias="answer")
-    rubric: str
-    max_score: int = Field(alias="max_points")
-    input_data_path: str = ""
-    metadata: dict[str, JsonValue] = Field(default_factory=dict)
-    nb_primary_language: str = Field(default=str(NBLanguage.PYTHON))
-
-    @model_validator(mode="before")
-    @classmethod
-    def handle_language(cls, data: dict) -> dict:
-        if data.get("nb_primary_language") is None:
-            data["nb_primary_language"] = str(NBLanguage.PYTHON)
-        return data
+# The rubric schemas (StepEvidence / CriterionScore / RubricScore / CriterionLevelScore /
+# RubricLevelScore), the rubric point parsers and ProblemInstance now live in env/judges/
+# and env/problem.py, next to the judge that owns each. They are imported above and
+# re-exported here so existing `from ...interpreter_env import X` call sites keep working.
 
 
 def _prep_workspace_dir(work_dir: str, workspace_path: str = "/data_workspace") -> None:
@@ -357,7 +354,7 @@ class EnrootKernelServer:
             export R_LIBS_USER="$WORKDIR/r_libs"
             export R_PROFILE_USER="$WORKDIR/Rprofile"
 
-            export PYTHONPATH="$WORKDIR/pydeps:${{PYTHONPATH}}"
+            export PYTHONPATH="$WORKDIR/pydeps${{PYTHONPATH:+:$PYTHONPATH}}"
             export PIP_CONFIG_FILE=$WORKDIR/pip.conf
             export target_platform=${{target_platform:-linux-64}}
 
@@ -753,7 +750,11 @@ class InterpreterEnvState:
 
         self.raw_score: int = 0
         self.score: float = 0.0
-        self.score_metadata: dict[str, str | int] = {}
+        # Whatever the judge reported (prompts, raw responses, reasoning) plus the derived
+        # per-criterion list and the fork floor — heterogeneous by construction, and dumped
+        # wholesale into score_info.json. Annotated `Any` because the declared `str | int`
+        # never matched the list-of-criteria and `None` values actually stored here.
+        self.score_metadata: dict[str, Any] = {}
 
     async def start(self):
         """Start the interpreter (local or Docker-based)."""
@@ -803,7 +804,7 @@ class InterpreterEnvState:
                 set -euo pipefail
                 cd /data_workspace
 
-                export PYTHONPATH="/data_workspace/pydeps:${{PYTHONPATH}}"
+                export PYTHONPATH="/data_workspace/pydeps${{PYTHONPATH:+:$PYTHONPATH}}"
                 export PIP_CONFIG_FILE=/data_workspace/pip.conf
                 exec /app/kernel_env/bin/python /envs/kernel_server.py \\
                     --work_dir /data_workspace \\
@@ -1270,6 +1271,16 @@ class InterpreterEnvConfig(BaseModel):
     use_enroot: bool = False
     container_sqsh_path: Path | None = None
     normalize_reward: bool = True
+    include_protocol: bool = True
+    # Run-wide judge override, by registered name (see env/judges/). Normally left at
+    # "auto": the judge is a property of the benchmark, so ProblemInstance.judge — set by
+    # the dataset converter — wins over this. "auto" with no problem-level judge falls back
+    # to rubric-format sniffing: BiomniBench-DA-style rubrics (`Criterion N:` +
+    # `Levels: A=X B=Y C=0`) get the A/B/C judge, everything else hypotest's
+    # integer-per-criterion one. Setting it to a name ("biomni", "hypotest", "heureka",
+    # …) forces that judge for every problem in the run, which is how you A/B two judges
+    # on the same dataset.
+    judge: str = "auto"
 
 
 class InterpreterEnv(Environment[InterpreterEnvState]):
@@ -1292,6 +1303,7 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
         extra_envs: dict[str, str] | None = None,
         include_env_state_msg: bool = False,
         save_dir: Path | None = None,
+        truth_dir: Path | None = None,
     ):
         self.config = config or InterpreterEnvConfig()
         self.work_dir = work_dir
@@ -1301,6 +1313,11 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
         self.use_host_env_vars = use_host_env_vars
         self.extra_envs = extra_envs or {}
         self.save_dir = save_dir
+        # [PATCH 24] The answer key for deterministic (non-LLM) judges — see env/judges/bioagent.py.
+        # Staged as a sibling of the capsule and never copied into work_dir, so the agent cannot
+        # read it. None for benchmarks that have no truth files.
+        self.truth_dir = truth_dir
+        self.include_protocol = self.config.include_protocol
 
         # Execution config for timeouts and capabilities
         self.execution_config = self.config.execution_config
@@ -1347,8 +1364,16 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
         )
 
         # Use kernel environment paths for isolated execution
+        # PATCH 3: Dynamically resolve the Python version inside kernel_env instead of
+        # hardcoding python3.12, so the PYTHONPATH entry is correct when the kernel_env
+        # is rebuilt against a different Python version.
+        # To revert: replace the three lines below (lib_path … kernel_site_packages) with
+        #   kernel_site_packages = kernel_env_path / "lib" / "python3.12" / "site-packages"
         kernel_env_path = Path(cfg.KERNEL_ENV_PATH)
-        kernel_site_packages = kernel_env_path / "lib" / "python3.12" / "site-packages"
+        lib_path = kernel_env_path / "lib"
+        pyver_dirs = sorted(lib_path.glob("python3.*")) if lib_path.exists() else []
+        kernel_pyver = pyver_dirs[-1].name if pyver_dirs else "python3.12"
+        kernel_site_packages = kernel_env_path / "lib" / kernel_pyver / "site-packages"
 
         self.state = InterpreterEnvState(
             work_dir=self.work_dir,
@@ -1363,6 +1388,12 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
                 "PATH": (str(kernel_env_path / "bin") + os.pathsep + os.environ.get("PATH", "")),
                 # R library path for user-installed packages
                 "R_LIBS_USER": str(kernel_env_path / "lib" / "R" / "library"),
+                # Ensure conda-installed shared libs (e.g. libzmq) are found
+                "LD_LIBRARY_PATH": (
+                    str(kernel_env_path / "lib") + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+                ),
+                # parso/IPython need a writable HOME to cache grammar files
+                "HOME": os.environ.get("HOME", "/tmp"),
             }
             | self.extra_envs,
             save_dir=self.save_dir,
@@ -1387,12 +1418,15 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
             Tool.from_function(self._filesystem_tool.list_dir),
         ]
 
+        task_desc_template = (
+            HYPOTHESIS_TASK_DESC if self.problem.task_style == "hypothesis" else RESEARCH_QUESTION_TASK_DESC
+        )
         messages.append(
             Message(
-                content=HYPOTHESIS_TASK_DESC.format(
+                content=task_desc_template.format(
                     language=self.language.value.capitalize(),
                     hypothesis=self.problem.hypothesis,
-                    protocol=self.problem.protocol,
+                    protocol=self.problem.protocol if self.include_protocol else NO_PROTOCOL_MSG,
                 )
             )
         )
@@ -1536,36 +1570,39 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
 
     @tenacity.retry(stop=tenacity.stop_after_attempt(3), retry=tenacity.retry_if_exception_type(ValueError))
     async def _score_solution(self, solution: str) -> bool:
-        assert self.rubric_model is not None
         nb_content, _ = view_notebook(self.state.nb.cells, self.language.value)
 
-        prompt = self.state.score_metadata["prompt"] = RUBRIC_SCORE_PROMPT.format(
-            hypothesis=self.problem.hypothesis,
-            accepted=self.problem.accepted,
-            rubric=self.problem.rubric,
+        # PATCH 17/20: grading protocol is per-benchmark and lives in env/judges/ — one
+        # registered function each, owning its prompt, its response schema, however many LLM
+        # calls it needs, and how labels/levels become points. Everything below the judge
+        # call (first_wrong_step, reward normalization, score_info.json) is shared. Adding a
+        # benchmark means adding a judge module, never editing this method. See patches.md.
+        # PATCH 24: a judge may also score deterministically, with no LLM at all — hence
+        # work_dir/truth_dir on the context and the tolerated None rubric_model.
+        judge = resolve_judge(self.problem, self.config)
+        self.state.score_metadata["grading_method"] = judge.name
+        max_score = self.problem.max_score
+        ctx = JudgeContext(
+            problem=self.problem,
             notebook=nb_content,
-            proposed_solution=solution,
+            solution=solution,
+            work_dir=self.work_dir,
+            truth_dir=self.truth_dir,
         )
 
-        resp = await self.rubric_model.call_single(prompt, timeout=3 * 60)
-        if not resp.text:
-            raise ValueError("No response from rubric model")
-        self.state.score_metadata["response"] = resp.text
-
         try:
-            raw_score = int(resp.text.split("<score>")[1].split("</score>")[0])
-            self.state.raw_score = raw_score
+            result = await judge.fn(ctx, self.rubric_model)
+            # The judge reports the prompt(s), raw response(s) and reasoning it actually used.
+            self.state.score_metadata.update(result.metadata)
+            # PATCH 19: emit the *derived* criteria (Python-computed first_wrong_step,
+            # full-marks criteria nulled) rather than the judge's raw JSON.
+            self.state.score_metadata["criteria"] = derive_first_wrong_step(result.criteria, self.problem.rubric)
+            self.state.raw_score = result.raw_score
+            max_score = result.max_score
 
-        except Exception as e:
-            raise ValueError("Failed to parse score from response") from e
-
-        else:
-            correct = raw_score == self.problem.max_score
-            score = raw_score / self.problem.max_score if self.config.normalize_reward else raw_score
-            score = max(
-                0.0,
-                min(1.0 if self.config.normalize_reward else self.problem.max_score, score),
-            )
+            correct = result.is_correct()
+            score = result.raw_score / max_score if self.config.normalize_reward else result.raw_score
+            score = max(0.0, min(1.0 if self.config.normalize_reward else max_score, score))
 
             self.state.score = score
             self.state.total_reward += score
@@ -1576,12 +1613,12 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
                 **self.state.score_metadata,
                 "score": self.state.score,
                 "raw_score": self.state.raw_score,
-                "max_score": self.problem.max_score,
+                "max_score": max_score,
             }
             with self.score_info_path.open("w") as f:
                 json.dump(score_info, f, indent=2)
 
-            self.logger.info(f"Received solution ({self.state.raw_score}/{self.problem.max_score}): {solution!r}.")
+            self.logger.info(f"Received solution ({self.state.raw_score}/{max_score}): {solution!r}.")
 
     async def submit_answer(self, answer: str) -> str:
         """Submit your response to the research question.
@@ -1597,12 +1634,37 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
         self.state.answer = answer
         self.state.done = True
 
-        if self.rubric_model is None:
+        # PATCH 24: only skip when the resolved judge actually needs an LLM. Deterministic
+        # judges (needs_model=False) score fine with no rubric_model configured at all.
+        if self.rubric_model is None and resolve_judge(self.problem, self.config).needs_model:
             self.logger.warning("No rubric_model configured, skipping scoring")
             return answer
 
         correct = await self._score_solution(answer)
-        return CORRECT_MSG if correct else INCORRECT_MSG
+        # PATCH 3: return the full rubric model output (thinking + evaluation text) so it lands
+        # in next_observation of the last trajectory step and is visible in inspect_trajectory.py.
+        # To revert: replace the block below with `return CORRECT_MSG if correct else INCORRECT_MSG`.
+        parts: list[str] = [CORRECT_MSG if correct else INCORRECT_MSG]
+        reasoning = self.state.score_metadata.get("reasoning", "")
+        if reasoning:
+            parts.append(f"<think>\n{reasoning}\n</think>")
+        # PATCH 19: emit the *derived* criteria (with the Python-computed first_wrong_step,
+        # full-marks criteria nulled) rather than the judge's raw JSON, so what
+        # inspect_trajectory renders matches score_info.json exactly. The raw judge text is
+        # still kept in score_metadata["response"] -> score_info.json; it is just no longer
+        # duplicated into the trajectory. Falls back to the raw text if parsing produced no
+        # criteria. To revert: replace the block below with
+        #     response = self.state.score_metadata.get("response", "")
+        #     if response: parts.append(f"Rubric evaluation:\n{response}")
+        criteria = self.state.score_metadata.get("criteria")
+        payload = (
+            json.dumps({"criteria": criteria}, indent=2)
+            if criteria
+            else self.state.score_metadata.get("response", "")
+        )
+        if payload:
+            parts.append(f"Rubric evaluation:\n{payload}")
+        return "\n\n".join(parts)
 
     # ========== Time Management ==========
 

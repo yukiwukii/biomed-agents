@@ -1,0 +1,52 @@
+# server.yaml, adjusted for scripts/fork_trajectory.py replaying the
+# archive/trial/ run. Two differences from server.yaml, both required:
+#
+#   1. capsule_dir: capsules/hypotest (not capsules/). The capsule folders live one
+#      level down. Verified against the run being forked: the `.checksum` files in
+#      capsules/hypotest/CapsuleData-33b801bb-.../ match the list_dir output recorded
+#      in task_0's first observation; capsules/bixbench/ has different contents and
+#      would replay the agent's actions against the wrong files.
+#   2. max_problems removed. server.yaml caps the dataset at 2, but the trajectories
+#      being forked are task_0..task_4, and idx 2-4 would be out of range.
+#
+# save_dir/work_dir below are irrelevant here — fork_trajectory.py overrides both
+# per round so each round's artifacts land under --out-dir.
+dataset:
+  capsule_dir: capsules/hypotest
+  hf_dataset: EdisonScientific/bixbench_hypothesis
+
+  # Must match the run being forked: those rollouts were generated without the protocol.
+  include_protocol: false
+
+  save_dir: archive/trial/results/
+  work_dir: tmp/
+
+  execution_config:
+    cell_execution_timeout: 600
+
+  rubric_model: claude-sonnet-4-6
+  rubric_model_config:
+    model_list:
+      - model_name: openrouter-gpt-5.4-mini
+        litellm_params:
+          model: openrouter/openai/gpt-5.4-mini
+          api_key: os.environ/OPENROUTER_API_KEY
+      - model_name: claude-sonnet-4-6
+        litellm_params:
+          model: anthropic/claude-sonnet-4-6
+          reasoning_effort: high
+      - model_name: gpt-5.4-nano
+        litellm_params:
+          model: gpt-5.4-nano
+      - model_name: gpt-5.4
+        litellm_params:
+          model: gpt-5.4
+      - model_name: gpt-5.4-mini
+        litellm_params:
+          model: gpt-5.4-mini
+      - model_name: gemini-3.5-flash
+        litellm_params:
+          model: gemini/gemini-3.5-flash
+
+api_key: hypotest-secret
+port: 8008

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -209,6 +210,40 @@ class Interpreter:
         self.client: AsyncKernelClient | None = None
         self._is_ready = False
 
+    def _setup_pip_env(self, env: dict[str, str]) -> dict[str, str]:
+        # PATCH 4: Redirect pip installs to work_dir/pydeps so the kernel can install
+        # packages without needing write access to ~/.local or the system site-packages.
+        # work_dir/pydeps is PREPENDED to PYTHONPATH so packages the model installs OR
+        # upgrades into pydeps take precedence over the curated kernel_env copy — appending
+        # (the original Patch 6) made `pip install --upgrade <pkg>` a silent no-op because
+        # kernel_env always won. Prepending is safe because Patch 7 launches the kernel under
+        # kernel_env's own 3.12 interpreter, so whatever pip drops into pydeps is ABI-matched
+        # (the earlier prepend crash was a 3.13-vs-3.12 numpy mismatch, fixed at the source by
+        # Patch 7) and pip — seeing kernel_env's packages as already installed — no longer
+        # re-drags the full dependency tree into pydeps. The accepted tradeoff: an explicit
+        # upgrade of a core lib now shadows kernel_env for the whole kernel (the desired
+        # behavior). Mirrors what _prep_workspace_dir does for the Enroot/Docker paths.
+        # To revert: delete this method, replace `merged = self._setup_pip_env(merged)` with
+        #   `kwargs["env"] = merged`, and replace `kwargs["env"] = self._setup_pip_env(...)`
+        #   with `kwargs["env"] = os.environ | self.extra_envs`.
+        # Resolve to absolute so the PYTHONPATH/PIP_TARGET entries below are never
+        # relative. A relative entry would re-resolve against the kernel's cwd (which
+        # is the work_dir itself), producing a doubled `work_dir/<work_dir>/pydeps`
+        # path — a nested tmp dir and a malformed sys.path that breaks numpy import.
+        pydeps = (self.work_dir / "pydeps").resolve()
+        pip_cache = (self.work_dir / "pip-cache").resolve()
+        pydeps.mkdir(parents=True, exist_ok=True)
+        pip_cache.mkdir(parents=True, exist_ok=True)
+
+        pydeps_str = str(pydeps)
+        existing = env.get("PYTHONPATH", "")
+        if pydeps_str not in existing.split(os.pathsep):
+            env["PYTHONPATH"] = f"{pydeps_str}{os.pathsep}{existing}" if existing else pydeps_str
+
+        env.setdefault("PIP_TARGET", pydeps_str)
+        env.setdefault("PIP_CACHE_DIR", str(pip_cache))
+        return env
+
     async def start(self) -> None:
         """Start the kernel and prepare for execution."""
         if self._is_ready:
@@ -217,16 +252,56 @@ class Interpreter:
         kernel_name = self.language.make_kernelspec()["name"]
         self.kernel_manager = AsyncKernelManager(kernel_name=kernel_name)
 
+        # PATCH 6: Launch the Python kernel under kernel_env's own interpreter instead of
+        # whatever interpreter resolved the ambient "python" kernelspec. The registered
+        # kernelspec bakes an absolute path to the launching interpreter into argv[0], so
+        # running the benchmark from e.g. a Python 3.13 .venv starts a 3.13 kernel — while
+        # extra_envs (interpreter_env.py) injects kernel_env's 3.12 site-packages onto its
+        # PYTHONPATH. A 3.12-built numpy can't load under 3.13, producing the misleading
+        # "import numpy from its source directory" ImportError. Pointing argv[0] at
+        # kernel_env's python makes the interpreter and site-packages agree regardless of
+        # which venv launched the benchmark — matching what the enroot path already does by
+        # exec'ing /app/kernel_env/bin/python directly (interpreter_env.py:365, :808).
+        # To revert: delete this block.
+        if self.language == utils.NBLanguage.PYTHON:
+            kernel_python = Path(cfg.KERNEL_ENV_PATH) / "bin" / "python"
+            if kernel_python.exists():
+                # Accessing .kernel_spec loads and caches the spec on the manager; mutating
+                # argv[0] in place is picked up by the subsequent start_kernel() call.
+                self.kernel_manager.kernel_spec.argv[0] = str(kernel_python)
+
         # Prepare kernel startup kwargs with environment variables
-        kwargs: dict[str, Any] = {"cwd": str(self.work_dir)}
+        kwargs: dict[str, Any] = {"cwd": str(self.work_dir.resolve())}
         if not self.use_host_env_vars:
-            kwargs["env"] = {
+            env = {
                 required_env_var: os.environ[required_env_var]
                 for required_env_var in cfg.REQUIRED_PATH_ENV_VARS
                 if os.environ.get(required_env_var)
-            } | self.extra_envs
+            }
+            # PATCH 3: Strip Python-version-specific paths from PYTHONPATH that
+            # don't match the running interpreter (e.g. python3.12 paths when the
+            # kernel runs Python 3.13). Filter is applied ONLY to the host-inherited
+            # env paths, not to extra_envs (which are intentionally set for the
+            # kernel, e.g. kernel_site_packages) — otherwise the filter would
+            # silently drop the kernel's own site-packages when the outer Python
+            # minor version differs from kernel_env's version.
+            # To revert: replace the block below (through kwargs["env"] = merged) with
+            #   kwargs["env"] = env | self.extra_envs
+            current_pyver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+            if "PYTHONPATH" in env:
+                env["PYTHONPATH"] = os.pathsep.join(
+                    p for p in env["PYTHONPATH"].split(os.pathsep)
+                    if not any(
+                        f"python3.{minor}" in p
+                        for minor in range(20)
+                        if f"python3.{minor}" != current_pyver
+                    )
+                )
+            merged = env | self.extra_envs
+            merged = self._setup_pip_env(merged)
+            kwargs["env"] = merged
         else:
-            kwargs["env"] = os.environ | self.extra_envs
+            kwargs["env"] = self._setup_pip_env(os.environ | self.extra_envs)
 
         await self.kernel_manager.start_kernel(**kwargs)
         self.client = self.kernel_manager.client()

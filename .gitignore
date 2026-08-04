@@ -133,3 +133,20 @@ cython_debug/
 *.pem
 
 server.yaml
+
+# Large local data / run outputs (never commit)
+capsules/
+tmp/
+archive/
+proposer/
+cache/
+
+# Local virtualenvs not matched by the .venv rule
+.venv_policy/
+.venv.broken/
+
+# Agent + editor local state
+.claude/
+
+# Generated trajectory viewers (multi-MB)
+/*.html
