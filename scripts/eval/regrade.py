@@ -118,7 +118,7 @@ def build_mapping(trajs, results_dir: Path):
 
     A trajectory whose agent never submitted an answer (empty ``final_answer``)
     cannot be matched to a saved prompt — its best SequenceMatcher ratio against
-    every real solution is 0.0, so it would otherwise mis-match an arbitrary
+    every real solution is 0.0, so it would otherwise mismatch an arbitrary
     prompt for a *different* task. Such entries get ``(t, "(no answer)", None, 0.0)``
     and are skipped during grading (forced to score 0).
     """

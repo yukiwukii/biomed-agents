@@ -1,0 +1,5 @@
+# Blank lines carry structure in this repo's YAML: the example configs are
+# section-commented for readers, and the RL configs are mostly explanatory
+# comments. Stripping them (yamlfmt's default) makes them much harder to read.
+formatter:
+  retain_line_breaks_single: true

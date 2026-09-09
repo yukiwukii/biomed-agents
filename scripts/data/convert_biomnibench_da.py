@@ -49,7 +49,7 @@ Usage:
     .venv/bin/python scripts/data/convert_biomnibench_da.py \
         --out-jsonl problems_biomnibench_da.jsonl --capsule-dir capsules_biomnibench_da/
 
-    # re-use an already-downloaded snapshot instead of hitting the Hub again:
+    # reuse an already-downloaded snapshot instead of hitting the Hub again:
     .venv/bin/python scripts/data/convert_biomnibench_da.py --snapshot-dir /path/to/snapshot
 
     # only convert a subset while iterating:

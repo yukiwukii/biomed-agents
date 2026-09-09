@@ -74,9 +74,9 @@ grpo:
   # (2026-08-12: briefly 1 for the exp_002 memory probe, restored to 3. The
   # probe reached policy.train() in 25 min instead of ~50 and confirmed
   # cpu_offload fixes the exp_001 OOM -- see dtensor_cfg.cpu_offload.)
-  num_prompts_per_step: 3       # 3 tasks
+  num_prompts_per_step: 3 # 3 tasks
   num_generations_per_prompt: 4 # 4 trajectories of EACH -> group size 4
-  max_rollout_turns: 1          # the Gym agent owns the multi-turn loop
+  max_rollout_turns: 1 # the Gym agent owns the multi-turn loop
   # 2026-08-12: 12 (preflight) -> 50. Deliberately ABOVE the ~30 steps that
   # 2 epochs x 15 steps/epoch implies, so `max_num_epochs: 2` is what ends the
   # run -- the DATA running out, not a number being too small. The loop is
@@ -274,7 +274,7 @@ policy:
     name: ${policy.model_name}
     chat_template_kwargs: null
   hf_config_overrides: {}
-  train_global_batch_size: ${mul:${grpo.num_prompts_per_step}, ${grpo.num_generations_per_prompt}}  # = 4
+  train_global_batch_size: ${mul:${grpo.num_prompts_per_step}, ${grpo.num_generations_per_prompt}} # = 4
   train_micro_batch_size: 1
   logprob_batch_size: 1
   generation_batch_size: 4
@@ -860,7 +860,7 @@ data:
     # 2026-08-13: hypotest held-out, 51 judgeable tasks, task_idx 250..300.
     # Disjoint from train (zero id overlap, verified). 14 rubric-less hypotest
     # capsules were dropped -- see make_combined_splits.py.
-    data_path: /config/rl/data/eval_hypotest15.jsonl  # 2026-08-15: 15 held-out hypotest tasks (5 was too noisy)
+    data_path: /config/rl/data/eval_hypotest15.jsonl # 2026-08-15: 15 held-out hypotest tasks (5 was too noisy)
   default:
     dataset_name: NemoGymDataset
     env_name: "nemo_gym"

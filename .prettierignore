@@ -1,0 +1,13 @@
+# Machine-generated records: agent trajectories, generated hypotheses, judgments,
+# benchmark task data and rendered viewers. We did not author this formatting and
+# reformatting it is churn that obscures the diff of the code we do author.
+proposer/
+rl/data/
+capsules/
+archive/
+
+# Exploratory analysis notebooks are an experiment record, kept as written.
+notebook/
+
+# Golden test fixtures: reformatting them breaks the tests that compare against them.
+tests/assets/

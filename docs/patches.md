@@ -7,14 +7,14 @@ Local workaround patches applied on top of the upstream codebase. Each section d
 > The setup was cut back to a single model (Qwen3.5-9B). Patches 1-28 all touch
 > `src/hypotest` — the benchmark harness, the judge and the fork tooling — and are
 > **unchanged and still applied**; the reward path in particular was deliberately
-> left alone. Only the *training* side was simplified.
+> left alone. Only the _training_ side was simplified.
 >
 > What changed:
 >
-> | | |
-> | --- | --- |
-> | **Patch 29** (grad buffer) | still applied, but now conditional — see [`handoff.md`](handoff.md) §3 and §5. If the 32768 cap is chosen it should be deleted, as it halves nothing while the logits arrive fp32 |
-> | **Patch 30** (strip images) | unchanged, still applied, and load-bearing |
+> |                                 |                                                                                                                                                                                                          |
+> | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | **Patch 29** (grad buffer)      | still applied, but now conditional — see [`handoff.md`](handoff.md) §3 and §5. If the 32768 cap is chosen it should be deleted, as it halves nothing while the logits arrive fp32                        |
+> | **Patch 30** (strip images)     | unchanged, still applied, and load-bearing                                                                                                                                                               |
 > | the three other NeMo RL patches | unchanged and **required**: `HYPOTEST_TP_PLAN_PATCH`, `HYPOTEST_FP32_CAST_PATCH`, `HYPOTEST_TRAIN_CHUNK_PATCH`. All three fix a config value that upstream accepts and then ignores. See `handoff.md` §5 |
 >
 > The open question Patch 29 was written against is now answered: the logits are
@@ -39,6 +39,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 **Why:** Needed a quick way to run short smoke-test benchmark runs without processing the full dataset.
 
 **To revert:**
+
 - Remove the `max_problems` field from `DatasetConfig` (line marked `[PATCH 1]`).
 - In `load_problems()`, restore the original one-liner returns (remove the `if/else` block and the `[:self.max_problems]` slice — the method should just `return self._load_from_hf()` or the list comprehension directly).
 
@@ -53,6 +54,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 **Why:** The HuggingFace Inference API rejects requests with `tool_choice="required"` with a 400 error. The upstream `SimpleAgent` hardcodes `"required"`.
 
 **To revert:**
+
 - Delete `HFSimpleAgent` and `HFSimpleAgentConfig`.
 - Restore `SimpleAgentConfig` to its original one-liner (direct import/alias from ldp).
 - Change `agent_type` in `benchmark.yaml` back to `"SimpleAgent"`.
@@ -65,7 +67,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 
 **What:** Three related changes shipped together:
 
-1. **PYTHONPATH version stripping** (`interpreter.py`): Filters out any `python3.X` paths from the *host env* `PYTHONPATH` that don't match the running interpreter version, then merges with `extra_envs`. The filter is applied BEFORE the merge so that paths explicitly set in `extra_envs` (e.g. `kernel_site_packages`) are never stripped — this fixed a bug where the old post-merge filter silently dropped the kernel's site-packages when the outer Python minor version differed from `kernel_env`'s Python version, causing `No module named 'sklearn'` errors.
+1. **PYTHONPATH version stripping** (`interpreter.py`): Filters out any `python3.X` paths from the _host env_ `PYTHONPATH` that don't match the running interpreter version, then merges with `extra_envs`. The filter is applied BEFORE the merge so that paths explicitly set in `extra_envs` (e.g. `kernel_site_packages`) are never stripped — this fixed a bug where the old post-merge filter silently dropped the kernel's site-packages when the outer Python minor version differed from `kernel_env`'s Python version, causing `No module named 'sklearn'` errors.
    - To revert: replace the filtering block (from `current_pyver = ...` through `kwargs["env"] = merged`) with `kwargs["env"] = env | self.extra_envs`.
 
 2. **Dynamic kernel Python version** (`interpreter_env.py`, around `_reset` / `reset`): Resolves the Python version inside `kernel_env` at runtime by globbing `lib/python3.*` instead of hardcoding `python3.12`.
@@ -74,7 +76,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 3. **Rubric thinking tokens** (`interpreter_env.py`, `_score_solution` / `submit_answer`): Captures `resp.reasoning_content` into `score_metadata["reasoning"]`, and returns the full rubric model output (thinking + evaluation text) as the final observation instead of just `CORRECT_MSG` / `INCORRECT_MSG`.
    - To revert thinking capture: delete the two lines under `# PATCH 3: also capture thinking tokens`.
    - To revert full rubric return: replace the `parts` block in `submit_answer` with `return CORRECT_MSG if correct else INCORRECT_MSG`.
-   - **Narrowed by Patch 19:** the `Rubric evaluation:` payload is now the *derived* criteria, not the judge's raw JSON. The thinking block and the raw text in `score_info.json` are unaffected.
+   - **Narrowed by Patch 19:** the `Rubric evaluation:` payload is now the _derived_ criteria, not the judge's raw JSON. The thinking block and the raw text in `score_info.json` are unaffected.
 
 ---
 
@@ -83,6 +85,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 **Files:** `src/hypotest/env/interpreter.py`
 
 **What:** Added `Interpreter._setup_pip_env()`, called from `Interpreter.start()` for both the `use_host_env_vars=True` and `False` branches. The method:
+
 - Creates `work_dir/pydeps` and `work_dir/pip-cache` directories.
 - Sets `PIP_TARGET=work_dir/pydeps` so `pip install` writes packages there instead of `~/.local`.
 - Sets `PIP_CACHE_DIR=work_dir/pip-cache` so pip doesn't touch `~/.cache/pip`.
@@ -91,6 +94,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 **Why:** On this cluster, `/home/wangsaja` is not writable by the kernel process, so `pip install` in notebooks failed with `Permission denied: '/home/wangsaja'`. The Enroot/Docker paths already handle this via `_prep_workspace_dir`; this patch brings the local kernel path to parity.
 
 **To revert:**
+
 - Delete `_setup_pip_env`.
 - In the `if not self.use_host_env_vars` branch, replace `merged = self._setup_pip_env(merged)` with nothing (keep `kwargs["env"] = merged` as-is).
 - In the `else` branch, replace `kwargs["env"] = self._setup_pip_env(os.environ | self.extra_envs)` with `kwargs["env"] = os.environ | self.extra_envs`.
@@ -102,6 +106,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 **Files:** `src/hypotest/dataset_server.py`, `src/hypotest/env/interpreter.py`
 
 **What:**
+
 - `dataset_server.py` (`get_new_env_by_idx`): resolve `problem_dir` and `save_dir` to absolute paths with `.resolve()`.
 - `interpreter.py` (`_setup_pip_env`): resolve `pydeps`/`pip-cache` to absolute before putting them on `PYTHONPATH`/`PIP_TARGET`.
 - `interpreter.py` (`start`): pass an absolute `cwd` to the kernel (`str(self.work_dir.resolve())`).
@@ -116,14 +121,14 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 
 **Files:** `src/hypotest/env/interpreter.py`, `src/hypotest/env/interpreter_env.py`
 
-**History:** This patch originally *appended* `pydeps` to the end of `PYTHONPATH` so the
+**History:** This patch originally _appended_ `pydeps` to the end of `PYTHONPATH` so the
 curated `kernel_env` always won, working around a crash where a freshly pip-installed numpy
 shadowed the ABI-matched kernel_env copy. That crash was a 3.13-vs-3.12 ABI mismatch, since
 fixed at the source by **Patch 7** (kernel now launches under kernel_env's own interpreter).
 Because appending also made every `pip install --upgrade <pkg>` a silent no-op (kernel_env
 won), it has now been **reverted to prepend** so the model can actually install/upgrade libs.
 
-**What (current):** `work_dir/pydeps` is at the *front* of `PYTHONPATH` in all three places it
+**What (current):** `work_dir/pydeps` is at the _front_ of `PYTHONPATH` in all three places it
 is set:
 
 - `interpreter.py` (`_setup_pip_env`): `PYTHONPATH = f"{pydeps_str}:{existing}"`.
@@ -140,7 +145,7 @@ Patch 7 makes pip run under kernel_env's 3.12 interpreter: installs are ABI-matc
 seeing kernel_env's packages as already installed — no longer re-drags the full dependency
 tree into `pydeps` (the condition that caused the original prepend crash before Patch 7).
 
-**Accepted tradeoff:** an *explicit* upgrade of a core kernel_env lib (e.g.
+**Accepted tradeoff:** an _explicit_ upgrade of a core kernel_env lib (e.g.
 `pip install --upgrade numpy`) now shadows kernel_env for the whole kernel, which could break
 other compiled kernel_env packages built against the old ABI. That is the desired capability
 (working upgrades), not a regression — appending only "avoided" it by disabling upgrades.
@@ -156,9 +161,9 @@ spots (and restore the bash `${PYTHONPATH:+$PYTHONPATH:}` prefix form).
 
 **What:** In `Interpreter.start()`, after creating the `AsyncKernelManager`, override the kernelspec's `argv[0]` to `Path(cfg.KERNEL_ENV_PATH)/"bin"/"python"` for the PYTHON language (guarded by `kernel_python.exists()`). Accessing `kernel_manager.kernel_spec` loads+caches the spec; mutating `argv[0]` in place is honored by the subsequent `start_kernel()`.
 
-**Why:** The local path starts the kernel via `AsyncKernelManager(kernel_name="python")`, which resolves the *ambient* registered kernelspec — whose `argv[0]` is an absolute path to whatever interpreter launched the benchmark. Running `python src/hypotest/benchmark_agent.py` from the project `.venv` (Python 3.13) therefore started a **3.13** kernel, while `extra_envs` (interpreter_env.py:1369) injected kernel_env's **3.12** `site-packages` onto its `PYTHONPATH`. A 3.12-built numpy cannot load its C extensions under 3.13, producing the misleading `ImportError: you should not try to import numpy from its source directory`. (The `%%bash` `which python` shows 3.12 because `PATH` is overridden, masking that the *kernel process* is 3.13.) The enroot path never had this bug because it `exec`s `/app/kernel_env/bin/python` directly (interpreter_env.py:365, :808); this brings the local path to parity. Fix is independent of which venv launches the benchmark.
+**Why:** The local path starts the kernel via `AsyncKernelManager(kernel_name="python")`, which resolves the _ambient_ registered kernelspec — whose `argv[0]` is an absolute path to whatever interpreter launched the benchmark. Running `python src/hypotest/benchmark_agent.py` from the project `.venv` (Python 3.13) therefore started a **3.13** kernel, while `extra_envs` (interpreter*env.py:1369) injected kernel_env's **3.12** `site-packages` onto its `PYTHONPATH`. A 3.12-built numpy cannot load its C extensions under 3.13, producing the misleading `ImportError: you should not try to import numpy from its source directory`. (The `%%bash` `which python` shows 3.12 because `PATH` is overridden, masking that the \_kernel process* is 3.13.) The enroot path never had this bug because it `exec`s `/app/kernel_env/bin/python` directly (interpreter_env.py:365, :808); this brings the local path to parity. Fix is independent of which venv launches the benchmark.
 
-**Relationship to other patches:** This fixes the interpreter↔site-packages version mismatch *at the source*. **Patch 3 item 1** (host `PYTHONPATH` version-stripping) was a band-aid for the same class of mismatch and is now the one **revert candidate** — but it computes `current_pyver` from the *outer* process, so it's no longer load-bearing for this bug; leave it as harmless defense-in-depth until Patch 7 is verified on the server, then it can likely be removed. Patches 4/5/6 are orthogonal (pip target, absolute paths, pydeps ordering) and stay.
+**Relationship to other patches:** This fixes the interpreter↔site-packages version mismatch _at the source_. **Patch 3 item 1** (host `PYTHONPATH` version-stripping) was a band-aid for the same class of mismatch and is now the one **revert candidate** — but it computes `current_pyver` from the _outer_ process, so it's no longer load-bearing for this bug; leave it as harmless defense-in-depth until Patch 7 is verified on the server, then it can likely be removed. Patches 4/5/6 are orthogonal (pip target, absolute paths, pydeps ordering) and stay.
 
 **To revert:** delete the `if self.language == utils.NBLanguage.PYTHON:` block in `start()`.
 
@@ -177,13 +182,14 @@ spots (and restore the bash `${PYTHONPATH:+$PYTHONPATH:}` prefix form).
 ```json
 {
   "task_0": [
-    {"step": 0, "thinking": "..."},
-    {"step": 1, "thinking": "..."}
+    { "step": 0, "thinking": "..." },
+    { "step": 1, "thinking": "..." }
   ]
 }
 ```
 
 **To revert:**
+
 - Delete `extract_thinking` and `ThinkingLogger`.
 - Restore `rm = RolloutManager(agent)` (drop the `callbacks=[...]` arg).
 - Drop the `_task_idx` contextvar and the `_task_idx.set(idx)` line in `rollout()`.
@@ -204,6 +210,7 @@ spots (and restore the bash `${PYTHONPATH:+$PYTHONPATH:}` prefix form).
 **Why:** Both warnings flood stdout on essentially every LLM call, drowning out the progress bar and real output, despite being benign.
 
 **To revert:**
+
 - In both files, delete the `try/except` block (the `import litellm.litellm_core_utils.logging_callback_manager` + `update_litellm_max_callbacks()`) and the `from lmi.utils import update_litellm_max_callbacks` import.
 - In `benchmark_agent.py`, also delete the `warnings.filterwarnings(...)` call and the `import warnings`.
 
@@ -218,6 +225,7 @@ spots (and restore the bash `${PYTHONPATH:+$PYTHONPATH:}` prefix form).
 **Why:** Agents wasted turns attempting `pip install` for packages already in the container, or failing to attempt bioinformatics CLI tools (samtools, BLAST, etc.) at all. Explicitly listing pre-installed Python packages, R libraries, and command-line tools — plus the correct installation paths (`pydeps` via `!pip install`) — reduces unnecessary installs and lets the agent reach for the right tool on the first try.
 
 **To revert:**
+
 - Delete the `SOFTWARE_STACK_CAPABILITIES` constant from `prompts.py`.
 - In `config.py`, remove `+ "\n\n" + prompts.SOFTWARE_STACK_CAPABILITIES` from the `environment_capabilities_prompt` assignment (and the comment line above it).
 
@@ -238,9 +246,10 @@ spots (and restore the bash `${PYTHONPATH:+$PYTHONPATH:}` prefix form).
    - `raw_score` is now `sum(c.score for c in rubric_score.criteria)` — aggregated deterministically in Python.
    - Per-criterion breakdown is saved into `score_metadata["criteria"]` (list of dicts) and any prose preamble into `score_metadata["chain_of_thought"]`, so both appear in `score_info.json` and the trajectory pickle.
 
-**Why:** The old approach relied on the model to both evaluate each criterion *and* sum the total, then emit it in a specific `<score>N</score>` format. If the model misspelled the tag or computed the sum incorrectly, parsing failed or the score was wrong. Structured output removes both failure modes: the model only assigns per-criterion integers, and Python sums them. The preamble-stripping fixes a `RetryError` observed in production where Claude emitted valid JSON but preceded it with reasoning prose, causing `model_validate_json` to fail on the full string.
+**Why:** The old approach relied on the model to both evaluate each criterion _and_ sum the total, then emit it in a specific `<score>N</score>` format. If the model misspelled the tag or computed the sum incorrectly, parsing failed or the score was wrong. Structured output removes both failure modes: the model only assigns per-criterion integers, and Python sums them. The preamble-stripping fixes a `RetryError` observed in production where Claude emitted valid JSON but preceded it with reasoning prose, causing `model_validate_json` to fail on the full string.
 
 **To revert:**
+
 - In `prompts.py`, restore the last two lines of `RUBRIC_SCORE_PROMPT` to:
   ```
   Be scientifically rigorous. Reason through each criterion in the rubric and provide brief justification for your score. Do not assign partial score for any rubric item (i.e. 0.5 points).
@@ -263,15 +272,16 @@ spots (and restore the bash `${PYTHONPATH:+$PYTHONPATH:}` prefix form).
 
 **What:** Extended the structured rubric JSON (from Patch 11) with a second top-level field:
 
-- **`RUBRIC_SCORE_PROMPT`** (`prompts.py`): Added a `"first_wrong_step"` key to the requested JSON response. The model is instructed to output the 0-based index of the first notebook cell (as labelled `### Cell N:` in the rendered notebook) where the agent made an error inconsistent with the rubric, or `null` if no such error exists. The instruction asks for the *earliest causal cell*, not the cell where the consequence first became visible.
+- **`RUBRIC_SCORE_PROMPT`** (`prompts.py`): Added a `"first_wrong_step"` key to the requested JSON response. The model is instructed to output the 0-based index of the first notebook cell (as labelled `### Cell N:` in the rendered notebook) where the agent made an error inconsistent with the rubric, or `null` if no such error exists. The instruction asks for the _earliest causal cell_, not the cell where the consequence first became visible.
 
 - **`RubricScore`** (`interpreter_env.py`): Added `first_wrong_step: int | None` field to the model.
 
 - **`_score_solution`** (`interpreter_env.py`): Saves `rubric_score.first_wrong_step` into `score_metadata["first_wrong_step"]`, so it appears in `score_info.json` and the trajectory pickle alongside the per-criterion scores.
 
-**Why:** Wanted to pinpoint *where* in the agent's notebook the analysis went off-track, not just *whether* it did. `first_wrong_step` gives a cell-level signal for error localisation and could be used for process-supervision or reward shaping downstream. Cell indices from `view_notebook` are 0-based and correspond roughly to agent tool-call turns (each cell ≈ one `run_cell` invocation).
+**Why:** Wanted to pinpoint _where_ in the agent's notebook the analysis went off-track, not just _whether_ it did. `first_wrong_step` gives a cell-level signal for error localisation and could be used for process-supervision or reward shaping downstream. Cell indices from `view_notebook` are 0-based and correspond roughly to agent tool-call turns (each cell ≈ one `run_cell` invocation).
 
 **To revert:**
+
 - In `prompts.py`, remove the `"first_wrong_step"` paragraph from `RUBRIC_SCORE_PROMPT`.
 - In `interpreter_env.py`, remove `first_wrong_step: int | None` from `RubricScore`.
 - In `_score_solution`, delete the `self.state.score_metadata["first_wrong_step"] = ...` line.
@@ -295,6 +305,7 @@ Trajectory IDs gain a `_rep{r}` suffix when `k > 1` (e.g. `task_0_rep0`, `task_0
 **Why:** A single rollout per problem is noisy given the stochastic temperature-1.0 sampling. Running each problem k times and reporting avg@k / pass@k gives a more stable and informative evaluation signal — avg@k captures mean quality, pass@k captures whether the model can ever solve each problem.
 
 **To revert:**
+
 - Remove `num_replications: int = 1` from `BenchmarkConfig`.
 - Restore `rollout(idx: int)` (drop the `rep` parameter and `suffix` logic; restore `trajectory.traj_id = f"task_{idx}"`).
 - Restore the gather to `*[rollout(i) for i in range(len(client))]`.
@@ -323,12 +334,14 @@ Trajectory IDs gain a `_rep{r}` suffix when `k > 1` (e.g. `task_0_rep0`, `task_0
 **Why:** Wanted to evaluate agents without the curated protocol to measure how much of the benchmark score is attributable to the step-by-step guidance vs. the agent's own analysis planning.
 
 **Usage:** Set in `server.yaml` under `dataset:`:
+
 ```yaml
 dataset:
   include_protocol: false
 ```
 
 **To revert:**
+
 - Delete `NO_PROTOCOL_MSG` from `prompts.py`.
 - Remove `include_protocol: bool = True` from `InterpreterEnvConfig`.
 - In `InterpreterEnv.__init__`, remove `self.include_protocol = self.config.include_protocol`.
@@ -339,22 +352,23 @@ dataset:
 
 ## Patch 15 — per-criterion first_wrong_step (supersedes Patch 12's top-level field)
 
-> **Superseded by Patch 19:** the judge no longer emits `first_wrong_step`; it is derived in Python from `relevant_steps`. The per-criterion *shape* described below still holds — only its source changed.
+> **Superseded by Patch 19:** the judge no longer emits `first_wrong_step`; it is derived in Python from `relevant_steps`. The per-criterion _shape_ described below still holds — only its source changed.
 
 **Files:** `src/hypotest/env/prompts.py`, `src/hypotest/env/interpreter_env.py`, `scripts/fork_trajectory.py`, `scripts/inspect_trajectory.py`, `scripts/regrade.py`
 
 **What:** Moved `first_wrong_step` from a single top-level rubric field (Patch 12) to a **per-criterion** field, and rewired the fork tooling to use it.
 
-- **`RUBRIC_SCORE_PROMPT`** (`prompts.py`): The JSON response now has a single key `"criteria"`. Each criterion object carries its own `"first_wrong_step"` — the cell where the procedure went wrong *for that criterion specifically* (`null` when the criterion got full marks). The model is told it **must** provide a non-null `first_wrong_step` whenever a criterion does not receive full marks. The old top-level `"first_wrong_step"` key is gone.
+- **`RUBRIC_SCORE_PROMPT`** (`prompts.py`): The JSON response now has a single key `"criteria"`. Each criterion object carries its own `"first_wrong_step"` — the cell where the procedure went wrong _for that criterion specifically_ (`null` when the criterion got full marks). The model is told it **must** provide a non-null `first_wrong_step` whenever a criterion does not receive full marks. The old top-level `"first_wrong_step"` key is gone.
 - **`CriterionScore` / `RubricScore`** (`interpreter_env.py`): Added `first_wrong_step: int | None = None` to `CriterionScore`; removed `first_wrong_step` from `RubricScore`.
 - **`_score_solution`** (`interpreter_env.py`): Dropped the `score_metadata["first_wrong_step"] = ...` line entirely. The per-criterion steps now live solely in `score_metadata["criteria"]` (each dict includes `first_wrong_step`). `score_info.json` no longer has a top-level `first_wrong_step`.
 - **`fork_trajectory.py`**: Added `select_fork_criterion(criteria)` (picks the criterion with the smallest non-null `first_wrong_step`, returns `(cell, criterion)`) and `criterion_feedback(crit)` (builds the fork-point feedback note from that one driving criterion's name + justification). `main()` now reads the fork cell via `select_fork_criterion(info["criteria"])`, injects that criterion's feedback, errors out if no criterion flagged a step, and recomputes `new_fws` the same way. Replaced the old `extract_failed_criteria_feedback` (all score==0 criteria). The `--first-wrong-step` override path forks with no injected feedback (no single criterion to source it from).
 - **`inspect_trajectory.py`**: `_extract_rubric` derives the overall (earliest) `first_wrong_step` from the per-criterion values when the top-level field is absent. Terminal and HTML rubric views print each criterion's first wrong step inline and relabel the overall one "Earliest wrong step".
 - **`regrade.py`**: Updated its local mirror of the models to match (it only sums `.criteria`, so no behavior change).
 
-**Why:** A single top-level `first_wrong_step` conflated independent rubric failures. Per-criterion localisation pinpoints where each specific criterion went wrong, and lets the fork pick the *earliest* failure across criteria and replay the policy from there with that criterion's targeted feedback.
+**Why:** A single top-level `first_wrong_step` conflated independent rubric failures. Per-criterion localisation pinpoints where each specific criterion went wrong, and lets the fork pick the _earliest_ failure across criteria and replay the policy from there with that criterion's targeted feedback.
 
 **To revert:**
+
 - In `prompts.py`, restore the two-key JSON instruction with a top-level `"first_wrong_step"` paragraph (see Patch 12).
 - In `interpreter_env.py`, remove `first_wrong_step` from `CriterionScore`, add `first_wrong_step: int | None` back to `RubricScore`, and restore `self.state.score_metadata["first_wrong_step"] = rubric_score.first_wrong_step` in `_score_solution`.
 - In `fork_trajectory.py`, restore `extract_failed_criteria_feedback(traj)`, read `first_wrong_step` via `info.get("first_wrong_step")`, set `new_fws = env.state.score_metadata.get("first_wrong_step")`, and delete `select_fork_criterion` / `criterion_feedback`.
@@ -374,9 +388,10 @@ dataset:
 3. **`RUBRIC_SCORE_PROMPT_QUESTION`** (`prompts.py`): Sibling of `RUBRIC_SCORE_PROMPT`. Drops the `"The hypothesis is known to be {accepted}"` sentence entirely (there is no ground-truth boolean for an open question) and says "answer a research question" / "final answer" instead of "substantiate or reject a hypothesis" / "final conclusion". Both prompts now share their JSON-output-contract tail via a new `_RUBRIC_SCORE_PROMPT_TAIL` string constant, so the scoring/output schema (unchanged from Patch 15) can't drift between the two variants.
 4. **`InterpreterEnv.reset()` / `_score_solution()`** (`interpreter_env.py`): Both pick `HYPOTHESIS_TASK_DESC`/`RUBRIC_SCORE_PROMPT` or `RESEARCH_QUESTION_TASK_DESC`/`RUBRIC_SCORE_PROMPT_QUESTION` based on `self.problem.task_style`. The question-style `_score_solution` branch omits the `accepted=` format kwarg (the template has no `{accepted}` placeholder to fill).
 
-**Why:** Needed to load `phylobio/BiomniBench-DA` (open-ended data-analysis questions like "characterize cell subset distribution across tissues and identify tumor-specific types", graded by a 100-point expert rubric with no accept/reject ground truth) through this same `InterpreterEnv`/`Dataset`/rubric-grading pipeline, without touching the existing BixBench-style hypothesis accept/reject tasks or `scripts/generate_hypotheses.py`. User explicitly asked to *add* support rather than change existing behavior.
+**Why:** Needed to load `phylobio/BiomniBench-DA` (open-ended data-analysis questions like "characterize cell subset distribution across tissues and identify tumor-specific types", graded by a 100-point expert rubric with no accept/reject ground truth) through this same `InterpreterEnv`/`Dataset`/rubric-grading pipeline, without touching the existing BixBench-style hypothesis accept/reject tasks or `scripts/generate_hypotheses.py`. User explicitly asked to _add_ support rather than change existing behavior.
 
 **To revert:**
+
 - In `interpreter_env.py`: change `ProblemInstance.accepted` back to `bool = Field(alias="answer")` (no default), delete the `check_accepted_required_for_hypothesis` validator and the `task_style` field.
 - Remove the `RESEARCH_QUESTION_TASK_DESC` / `RUBRIC_SCORE_PROMPT_QUESTION` imports; restore `HYPOTHESIS_TASK_DESC.format(...)` (unconditional) in `reset()` and the unconditional `RUBRIC_SCORE_PROMPT.format(..., accepted=self.problem.accepted, ...)` in `_score_solution()`.
 - In `prompts.py`: delete `RESEARCH_QUESTION_TASK_DESC`, `RUBRIC_SCORE_PROMPT_QUESTION`, and `_RUBRIC_SCORE_PROMPT_TAIL`; restore `RUBRIC_SCORE_PROMPT` as a single inline string (its current content, header + tail, is unchanged — only the factoring changed).
@@ -387,7 +402,7 @@ dataset:
 
 **Files:** `src/hypotest/env/biomni_judge.py` (new), `src/hypotest/env/interpreter_env.py`, `src/hypotest/dataset_server.py`, `scripts/biomni_judge.py` (new)
 
-**What:** Added the *original* BiomniBench-DA grading method (faithful port of `phylobio/BiomniBench-DA` `da-*/tests/llm_judge.py`) as an additive, auto-selected grading path. Its defining property vs. hypotest's default judge: the LLM only **chooses a level (A/B/C)** per rubric criterion; **Python** maps each letter to the criterion's rubric-defined points (`Levels: A=X B=Y C=0`), sums to 0–100, and clamps — eliminating judge arithmetic noise. The default hypotest judge (integer-per-criterion, Patches 11/12/15) is unchanged and still used for all non-biomni rubrics.
+**What:** Added the _original_ BiomniBench-DA grading method (faithful port of `phylobio/BiomniBench-DA` `da-*/tests/llm_judge.py`) as an additive, auto-selected grading path. Its defining property vs. hypotest's default judge: the LLM only **chooses a level (A/B/C)** per rubric criterion; **Python** maps each letter to the criterion's rubric-defined points (`Levels: A=X B=Y C=0`), sums to 0–100, and clamps — eliminating judge arithmetic noise. The default hypotest judge (integer-per-criterion, Patches 11/12/15) is unchanged and still used for all non-biomni rubrics.
 
 1. **`biomni_judge.py`** (new, pure/stdlib-only — single source of truth): `parse_rubric_levels(rubric)` (verbatim from the original), `is_biomni_rubric(rubric)` (true iff levels parse), `build_judge_prompt(rubric, trace, answer)` (the original "pick ONE level A/B/C" prompt), and `score_from_response(response_text, rubric)` → `(total_0_100, criteria, reasoning)` (maps letters→points; never raises — scores 0 on unparseable output, matching the original).
 2. **`InterpreterEnvConfig.biomni_grading`** (`interpreter_env.py`): new `Literal["auto","biomni","hypotest"] = "auto"`. `"auto"` uses the biomni judge for biomni-style rubrics (detected by `is_biomni_rubric`) and the hypotest judge otherwise; `"biomni"`/`"hypotest"` force one method.
@@ -395,11 +410,12 @@ dataset:
 4. **`DatasetConfig.biomni_grading`** (`dataset_server.py`, + `Literal` import): same field so `server.yaml` can set it; flows into `InterpreterEnvConfig` via the existing `**self.config.model_dump()` splat (line ~129). Default `"auto"` → no config change needed to get biomni grading on biomni datasets.
 5. **`scripts/biomni_judge.py`** (new): offline CLI that imports the shared core. Two modes — (a) re-grade saved hypotest runs (`--results <dir>`: extracts `<rubric>`/`<notebook>`/`<proposed-solution>` from each `score_info.json` prompt, grades with the biomni method, prints a hypotest-vs-biomni table, `--write` saves `biomni_score.json` per dir + a summary); (b) native BiomniBench-DA (`--rubric/--trace/--answer` files, like the original). Configurable `--model` (default flow keeps gpt-5/whatever, per the "keep configurable" decision), `--api-base`/`--api-key`, `.env` auto-load.
 
-**Why:** User wanted BiomniBench-DA graded the *original* way when running the benchmark, while keeping normal hypotest tasks on the existing judge. Auto-detection by rubric structure means a biomni run (rubrics carry `Criterion N:` + `Levels: A/B/C`, `max_points=100`) is graded the biomni way with zero config, and BixBench-style hypothesis/question rubrics (no levels) keep the integer-per-criterion judge. The offline script covers re-grading already-completed runs and grading native biomni outputs.
+**Why:** User wanted BiomniBench-DA graded the _original_ way when running the benchmark, while keeping normal hypotest tasks on the existing judge. Auto-detection by rubric structure means a biomni run (rubrics carry `Criterion N:` + `Levels: A/B/C`, `max_points=100`) is graded the biomni way with zero config, and BixBench-style hypothesis/question rubrics (no levels) keep the integer-per-criterion judge. The offline script covers re-grading already-completed runs and grading native biomni outputs.
 
-**Caveat:** `parse_rubric_levels` only understands the A/B/C `Levels:` format. In `"auto"`, non-parseable rubrics correctly fall through to the hypotest judge live. But the offline `scripts/biomni_judge.py --results` **forces** the biomni method on every dir, so pointing it at a *mixed* results dir scores non-biomni tasks 0/100 — point it at a biomni-only run.
+**Caveat:** `parse_rubric_levels` only understands the A/B/C `Levels:` format. In `"auto"`, non-parseable rubrics correctly fall through to the hypotest judge live. But the offline `scripts/biomni_judge.py --results` **forces** the biomni method on every dir, so pointing it at a _mixed_ results dir scores non-biomni tasks 0/100 — point it at a biomni-only run.
 
 **To revert:**
+
 - Delete `src/hypotest/env/biomni_judge.py` and `scripts/biomni_judge.py`.
 - In `interpreter_env.py`: remove the `from .biomni_judge import ...` line, remove `biomni_grading` from `InterpreterEnvConfig`, and restore `_score_solution` to the single-path version — always build the hypothesis/question prompt, call `call_single(prompt, output_type=RubricScore, ...)`, and parse via `RubricScore.model_validate_json(...)` (drop the `use_biomni` branch, the `grading_method` metadata line, and the `overall_reasoning` branch).
 - In `dataset_server.py`: remove `biomni_grading` from `DatasetConfig` and drop `Literal` from the typing import if now unused.
@@ -415,8 +431,8 @@ dataset:
 1. **`prompts.py`** — Added `_RUBRIC_LEVEL_PROMPT_TAIL`, `RUBRIC_LEVEL_PROMPT`, and `RUBRIC_LEVEL_PROMPT_QUESTION`, each **derived by `.replace()`** from the existing Patch-16 score prompts (no duplicated prompt text; the two stay in lockstep automatically). The only swaps: the `"score": integer …` bullet → a `"level": exactly one of "A", "B", or "C" …` bullet, and the closing `Do not include a score total …` line → `Do not include any points or totals; points are derived from your chosen levels programmatically.` Everything else (framing, `relevant_steps`/`first_wrong_step`/`feedback` instructions, GOOD/BAD examples) is identical to the hypotest prompt.
 2. **`biomni_judge.py`** — Added `score_rich_levels(criteria, rubric) -> int`: maps each rich criterion's `level` → points via the existing `parse_rubric_levels` (matched to `Criterion N:` blocks **by position**), injects the computed `"score"` into each criterion dict in place, sums, clamps to [0, 100]. Unrecognized/empty level → lowest defined value for that criterion.
 3. **`interpreter_env.py`** — Added `CriterionLevelScore` (same shape as `CriterionScore`, but `level: str` instead of `score: int`; reuses `StepEvidence`) and `RubricLevelScore`. Changed the import from `biomni_judge` to `is_biomni_rubric, score_rich_levels` (dropped `build_judge_prompt`, `score_from_response`). In `_score_solution`: the `use_biomni` branch now uses `RUBRIC_LEVEL_PROMPT` / `RUBRIC_LEVEL_PROMPT_QUESTION` (same hypothesis/question selection as hypotest), calls the rubric model with **`output_type=RubricLevelScore`** (structured output, no longer plain `output_type=None`), and parses via `RubricLevelScore.model_validate_json(...)` → `score_rich_levels(...)`. The parse `try` block was unified so both judges share the `json_start`/`chain_of_thought` extraction. Removed the `score_metadata["overall_reasoning"]` line (the rich schema has no `overall_reasoning`); `grading_method`, `criteria`, `raw_score`, normalization, and `correct = raw==max` are unchanged.
-4. **`scripts/inspect_trajectory.py`** — Since every judge now emits the same rich *list* schema, the viewer has a **single** rubric path (no `--biomni` flag). The default `_extract_rubric` / `_html_rubric` / `_term_fmt_rubric` render every criterion field: `criterion`, the grade badge, `justification`, **`relevant_steps`** (per-cell ✓/✗ + note, via `_html_relevant_steps` / an indented terminal list), `first_wrong_step`, and `feedback`. Fields absent from a given criterion (e.g. `level`/`relevant_steps` on older pkls) render nothing.
-   - **Pass/fail is graded by `level` when present, not by score** (`_crit_status` + `_LEVEL_STATUS`). This matters because the serialized judge output in `next_observation` carries only the A/B/C `level` — the numeric `score` is injected later into `score_info.json`, **not** the observation — so the old `score > 0` test marked *every* biomni criterion red (0 > 0 = False), including full-marks level-A ones. Now **A → green pass (✓)**, **B → amber partial (~)**, **C → red fail (✗)** (new `.crit-partial` CSS + a level-colored `.crit-level` chip); hypotest criteria still grade by `score > 0`. The rubric header (`_rubric_header`) shows a level tally (`A×4 B×5 …`) for biomni instead of a `0 pts` total, and the badge shows the level letter (not `0 pt`).
+4. **`scripts/inspect_trajectory.py`** — Since every judge now emits the same rich _list_ schema, the viewer has a **single** rubric path (no `--biomni` flag). The default `_extract_rubric` / `_html_rubric` / `_term_fmt_rubric` render every criterion field: `criterion`, the grade badge, `justification`, **`relevant_steps`** (per-cell ✓/✗ + note, via `_html_relevant_steps` / an indented terminal list), `first_wrong_step`, and `feedback`. Fields absent from a given criterion (e.g. `level`/`relevant_steps` on older pkls) render nothing.
+   - **Pass/fail is graded by `level` when present, not by score** (`_crit_status` + `_LEVEL_STATUS`). This matters because the serialized judge output in `next_observation` carries only the A/B/C `level` — the numeric `score` is injected later into `score_info.json`, **not** the observation — so the old `score > 0` test marked _every_ biomni criterion red (0 > 0 = False), including full-marks level-A ones. Now **A → green pass (✓)**, **B → amber partial (~)**, **C → red fail (✗)** (new `.crit-partial` CSS + a level-colored `.crit-level` chip); hypotest criteria still grade by `score > 0`. The rubric header (`_rubric_header`) shows a level tally (`A×4 B×5 …`) for biomni instead of a `0 pts` total, and the badge shows the level letter (not `0 pt`).
    - (An interim `--biomni` flag + separate dict-schema renderers were added and then removed once the schema converged; the pre-Patch-18 `benchmark_results_biomni/trajectories.pkl` used that old dict schema and no longer renders as a structured rubric — it falls back to raw JSON text.)
 
 **Why:** The original biomni judge (Patch 17) discarded the process-supervision signal — no `relevant_steps`, `first_wrong_step`, or `feedback` — which the fork tooling (Patch 15) and trajectory viewer rely on. This keeps biomni's key property (the LLM only picks A/B/C, Python does the arithmetic — no judge-arithmetic noise) while restoring the full rich rubric, so biomni runs are inspectable and forkable exactly like hypotest runs.
@@ -424,10 +440,12 @@ dataset:
 **How to invoke:** unchanged from Patch 17 — set `biomni_grading` in `server.yaml` under `dataset:` (`auto` (default) auto-detects biomni rubrics via `is_biomni_rubric`; `biomni` forces the level judge; `hypotest` forces the integer judge). No config change is needed for BiomniBench-DA datasets since their rubrics carry the `Levels:` table.
 
 **To revert (restore Patch 17's live path):**
+
 - In `prompts.py`: delete `_RUBRIC_LEVEL_PROMPT_TAIL`, `RUBRIC_LEVEL_PROMPT`, `RUBRIC_LEVEL_PROMPT_QUESTION`.
 - In `biomni_judge.py`: delete `score_rich_levels`.
 - In `interpreter_env.py`: delete `CriterionLevelScore` / `RubricLevelScore`; restore the import to `from .biomni_judge import build_judge_prompt, is_biomni_rubric, score_from_response`; in `_score_solution`, restore the `use_biomni` prompt to `build_judge_prompt(self.problem.rubric, nb_content, solution)`, the call to `output_type=None if use_biomni else RubricScore`, and the biomni parse branch to `raw_score, criteria, overall_reasoning = score_from_response(resp.text, self.problem.rubric)` + `score_metadata["overall_reasoning"] = overall_reasoning` (moving the `json_start`/`chain_of_thought` extraction back inside the `else` branch).
 - In `scripts/inspect_trajectory.py`: delete `_LEVEL_STATUS` / `_crit_status` / `_rubric_header` and restore the inline `passed = score > 0` grading + `total pts` header in `_term_fmt_rubric` / `_html_rubric`; remove the `relevant_steps` rendering (`_html_relevant_steps` + the terminal loop) and the level badge; drop the `.crit-partial` / `.crit-level` / `.rstep*` CSS (revert to score-only pass/fail rubric cards).
+
 ---
 
 ## Patch 19 — first_wrong_step derived in Python (supersedes Patch 15's judge-emitted field)
@@ -449,16 +467,18 @@ dataset:
   - New `derive_first_wrong_step(criteria, rubric=None)` injects the earliest `relevant_steps` entry with `correct: false`, **nulling any criterion awarded full marks** (the judge does not reliably honour the consistency rule, so Python enforces it). Annotates in place and returns the same list. Without a parseable rubric the full-marks gate is skipped. Called on both grading branches with `self.problem.rubric`.
   - `submit_answer` emits the **derived** criteria as the `Rubric evaluation:` payload instead of the judge's raw JSON, so `inspect_trajectory` matches `score_info.json` exactly. This narrows Patch 3 item 3: the raw judge text is still saved in `score_metadata["response"]` → `score_info.json`, just no longer duplicated into the trajectory. Falls back to the raw text if no criteria parsed.
 - **`regrade.py`**: mirrors both functions locally (per the file's existing no-heavy-imports convention) plus a `rubric_text(prompt)` helper that recovers the rubric from the saved prompt's `<rubric>…</rubric>` block.
-- **`inspect_trajectory.py`**: `_derive_first_wrong_steps` fills the field in when a criterion **lacks the key** (old runs, or the raw-text fallback). It deliberately keys on key *presence*, not null-ness — since this patch an explicit `null` is a decision (full marks) and must not be overwritten. (**Patch 20** tags these viewer-side derivations `(derived)`, since the viewer has no rubric and so cannot apply the full-marks gate.)
+- **`inspect_trajectory.py`**: `_derive_first_wrong_steps` fills the field in when a criterion **lacks the key** (old runs, or the raw-text fallback). It deliberately keys on key _presence_, not null-ness — since this patch an explicit `null` is a decision (full marks) and must not be overwritten. (**Patch 20** tags these viewer-side derivations `(derived)`, since the viewer has no rubric and so cannot apply the full-marks gate.)
 
 **Why:** Asking the judge for `first_wrong_step` made it do bookkeeping that Python can do deterministically from `relevant_steps`, and the judge routinely contradicted itself — flagging incorrect steps on criteria it had just awarded full marks, which made fully-satisfied criteria drive forks. The repair and method-switch rules stop transient errors and abandoned approaches from becoming fork points, so a fork now lands on the earliest problem that actually survives to the end of the notebook.
 
 **Consequences:**
-- `fork_trajectory.py` is unchanged and works as before — it reads `first_wrong_step` off `score_info.json` criteria, which the derivation still populates. Fork *points* differ from pre-patch runs: self-corrected errors and full-marks criteria no longer drive a fork.
+
+- `fork_trajectory.py` is unchanged and works as before — it reads `first_wrong_step` off `score_info.json` criteria, which the derivation still populates. Fork _points_ differ from pre-patch runs: self-corrected errors and full-marks criteria no longer drive a fork.
 - Cell indices are unchanged (`view_notebook` labels `### Cell {idx}` 0-based; `fork_step_for_cell` expects 0-based).
 - Criteria are matched to rubric rows **positionally**, as `biomni_judge.score_rich_levels` already does. If the judge emits more criteria than the rubric has rows, the extras skip the full-marks gate.
 
 **To revert:**
+
 - In `prompts.py`: re-insert the commented-out `first_wrong_step` bullet between `relevant_steps` and `feedback`, revert the `feedback` bullet to anchor on it, and drop the repair / method-switch / consistency sentences.
 - In `interpreter_env.py`: uncomment `first_wrong_step` on both criterion models; delete `parse_criterion_max_scores`, `derive_first_wrong_step`, the `re` import, and the `parse_rubric_levels` import; unwrap both `derive_first_wrong_step(...)` calls in `_score_solution`; restore `submit_answer`'s payload to `score_metadata["response"]` (see the revert note inline).
 - In `regrade.py`: delete both mirrored functions and `rubric_text`; restore `"criteria": [c.model_dump() for c in rubric.criteria]`.
@@ -472,22 +492,25 @@ dataset:
 
 **What:** Patch 19's full-marks gate silently no-opped on the bixbench rubrics — the dataset this repo actually benchmarks against — so criteria awarded full marks still got a `first_wrong_step`.
 
-- **`interpreter_env.py`** — `_HYPOTEST_CRITERION_POINTS` matched only the numbered layout `N. (X points) …`. The `EdisonScientific/bixbench_hypothesis` rubrics are bullets — `* 1 point: …`, `* 5 points: …` — so `parse_criterion_max_scores` returned `[]`, every `max_pts` was `None`, and `derive_first_wrong_step` fell through to the earliest-incorrect-step rule for *every* criterion. The regex now accepts both layouts as alternatives capturing into groups 1 and 2 (`int(m.group(1) or m.group(2))` at the call site). The biomni `Levels:` branch is unchanged and still takes precedence.
+- **`interpreter_env.py`** — `_HYPOTEST_CRITERION_POINTS` matched only the numbered layout `N. (X points) …`. The `EdisonScientific/bixbench_hypothesis` rubrics are bullets — `* 1 point: …`, `* 5 points: …` — so `parse_criterion_max_scores` returned `[]`, every `max_pts` was `None`, and `derive_first_wrong_step` fell through to the earliest-incorrect-step rule for _every_ criterion. The regex now accepts both layouts as alternatives capturing into groups 1 and 2 (`int(m.group(1) or m.group(2))` at the call site). The biomni `Levels:` branch is unchanged and still takes precedence.
 - **`regrade.py`** — same change to the mirrored `_HYPOTEST_CRITERION_POINTS` / `parse_criterion_max_scores`, per the file's keep-in-sync note.
 - **`inspect_trajectory.py`** — the viewer cannot apply the gate at all: the rubric text appears nowhere in a trajectory pkl (it lives only in the judge prompt, i.e. `score_info.json`, and mapping a traj to its run dir needs `map_trajs.py`'s fuzzy answer matching). So rather than a fake gate, `_derive_first_wrong_steps` now tags what it computes with `_fws_derived`, and both renderers append `(derived)` via the new `_fws_suffix(cr)` helper. A step shown without that suffix came from the grader and is authoritative; one with it may be a full-marks criterion the viewer could not gate.
 
 **Why:** With the gate skipped, `score_info.json` — not just the viewer — recorded a wrong step on fully-satisfied criteria, and `fork_trajectory.py` picks the smallest non-null step across criteria, so a criterion that scored full marks could drive the fork. That is precisely the failure Patch 19 set out to eliminate; it just never took effect on the bullet-form rubrics.
 
 **Verification:**
+
 - On `archive/all-sonnet/results-trial/33b801bb-…-iter5`: scores `[1,0,1,1,1,0]`, `first_wrong_step` before `[None,11,None,24,None,11]` → after `[None,11,None,None,None,11]`. Only the bogus full-marks entry clears.
 - Across 1413 archived `score_info.json` files, parsed criterion counts match judge criterion counts in 1412; 39 criteria archive-wide were full-marks-with-a-step and would now be nulled. The single mismatch (`archive/gpt-judge/forks-wo-protocol/task_23_rep0-fork_cell11/…`) is a 7-row rubric where the judge returned only 6 criteria — a judge omission, and the positional-matching hazard Patch 19 already documents, not a parser bug.
 
 **Consequences:**
+
 - Fork points shift again for bullet-form rubrics: a full-marks criterion can no longer be the earliest flagged one.
 - Existing `score_info.json` files are **not** backfilled — re-run `scripts/regrade.py` (its `rubric_text(prompt)` recovers the rubric from the saved prompt) if you need old runs corrected.
 - Trajectory pkls written by a server process started before Patch 19's `submit_answer` payload swap still carry the judge's raw JSON, which has no `first_wrong_step` key at all; those render as `(derived)` in the viewer. Restart the dataset server to get derived criteria embedded.
 
 **To revert:**
+
 - In `interpreter_env.py` and `regrade.py`: restore `_HYPOTEST_CRITERION_POINTS = re.compile(r"^\s*\d+\.\s*\(\s*(\d+)\s*points?\s*\)", re.MULTILINE)` and `int(m.group(1))` in `parse_criterion_max_scores`.
 - In `inspect_trajectory.py`: delete `_fws_suffix`, the `c["_fws_derived"] = True` line in `_derive_first_wrong_steps`, and the two `{_fws_suffix(cr)}` interpolations in `_term_fmt_rubric` / `_html_rubric`.
 
@@ -506,6 +529,7 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 **Why:** Dependency wrangling is infrastructure noise, not scientific work. The judge was listing install failures in `relevant_steps` and marking them `correct: false`, which cost criteria points for a reason the rubric never asks about — and, since Patch 19 derives `first_wrong_step` from the earliest `correct: false` entry, made a failed `pip install` the fork point for a fresh policy rollout. The closing clause keeps the exemption narrow: a criterion is not excused merely because the tool it needed never installed.
 
 **Consequences:**
+
 - Fork points move off setup cells and onto the first genuine analysis problem.
 - Scores may rise slightly on runs that fought their environment; a criterion whose analysis never ran still scores 0.
 
@@ -523,6 +547,7 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 2. **Disposable kernel env.** `/mlbio_scratch/wangsaja/kernel_env_conda` — a micromamba conda env reproducing the Dockerfile's `/app/kernel_env` on linux-64: Python 3.12 stack, R 4.3.3 + IRkernel + rpy2 3.5.11 + Seurat/tidyverse/WGCNA/coloc, the Bioconductor set (DESeq2, limma, clusterProfiler, EnhancedVolcano, …), and the bioconda CLI tools (BLAST, samtools, SPAdes, MAFFT, IQ-TREE, FastQC, Trim Galore, HMMER, MMseqs2, metaEuk), plus `rdata`/`pyreadr` via pip. Built by `/mlbio_scratch/wangsaja/build_kernel_env_conda.sh` using `/mlbio_scratch/wangsaja/bin/micromamba` (static binary, no root). Wired by `KERNEL_ENV_PATH` in `.env`. This is the first thing on this host to satisfy Patch 7's `kernel_python.exists()` guard, which was previously inert because `/app/kernel_env` does not exist outside the container — so Patch 7's `argv[0]` pin only starts working now. An earlier uv-venv version of this env remains at `/mlbio_scratch/wangsaja/kernel_env` as rollback; it has the Python stack but no R.
 
    Built as a **single solve**, not the Dockerfile's staged installs. The `r-base` clobber that PATCH 2's `conda-meta/pinned` file works around only occurs when a later `mamba install` re-solves and bumps R; with one transaction there is no later step, so no pinned file is needed. The Dockerfile's PATCH 1 (ARM Miniconda), PATCH 4 (`r-coloc` has no aarch64 build) and PATCH 6 (`chempy`/`pyodesys` on ARM) are all aarch64 workarounds and do not apply on x86_64 — `r-coloc` installs normally here.
+
 3. **`uv` shim** at `kernel_env/bin/uv`. `kernel_env/bin` is first on the kernel's PATH (`interpreter_env.py`, `extra_envs["PATH"]`), so it intercepts `uv`. It drops `--system` and appends `--python $KERNEL_ENV/bin/python` to every `uv pip` call; non-`pip` subcommands pass through.
 4. **`SOFTWARE_STACK_CAPABILITIES`** in `prompts.py`: removed the `!uv pip install --system <pkg>` instruction; corrected the `curl` claim (both `wget` and `curl` are present); gave the CLI tools their real binary names (`spades.py`, `iqtree`, `trim_galore`, `hmmsearch`, `mmseqs`, and `gatk3` — not `gatk`); asserted that the R stack and CLI tools are installed and must not be re-installed; and added two worked recipes — reading `.rds`/`.RData`, and `pydeseq2` differential expression.
 
@@ -532,17 +557,18 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 
 **Why:** On 2026-07-28 a rollout ran `!uv pip install --system pydeseq2` (`archive/all-sonnet/results/4ef3fcd8-…-iter1`) after a plain `pip install` appeared to do nothing — because Patch 4's `PIP_TARGET` had silently redirected it to `pydeps`. uv ignores `PIP_TARGET` entirely, and `--system` deliberately bypasses virtualenvs, so the install landed in the project `.venv`. It left three numpy `dist-info` dirs (1.21.6, 2.4.1, 2.5.1) and dangling NFS silly-rename symlinks in `numpy.libs`, breaking `import numpy` for both the benchmark and every script using `.venv`. The prompt was the proximate teacher: it named that exact command. Patch 4 was never a boundary — it is an env-var default on one tool, and the kernel runs as the invoking user with write access to every env on PATH.
 
-**On the R stack:** `force_python: bool = True` (`dataset_server.py:43`, not overridden in `server.yaml`) forces `NBLanguage.PYTHON` for every task, so the `ir` kernel is never requested. The upstream dataset is 30 Python / 21 R; all 51 run, but R-native tasks execute in Python. In `archive/all-sonnet` they score close on average (mean 0.552 vs 0.572) but fail outright more often (11% zero-reward reps vs 2%), with two R tasks at 0/3 across all reps. One of them (`0923d260`) has DESeq2 `.rds` inputs and its `pydeps` contains an agent-installed `rdata` — hence change 4's reading recipe. R is now installed, but reachable only via `rpy2`/`%%R`/`!Rscript` from Python cells; running the 21 R-native tasks *as* R additionally requires setting `force_python: false` in `server.yaml`.
+**On the R stack:** `force_python: bool = True` (`dataset_server.py:43`, not overridden in `server.yaml`) forces `NBLanguage.PYTHON` for every task, so the `ir` kernel is never requested. The upstream dataset is 30 Python / 21 R; all 51 run, but R-native tasks execute in Python. In `archive/all-sonnet` they score close on average (mean 0.552 vs 0.572) but fail outright more often (11% zero-reward reps vs 2%), with two R tasks at 0/3 across all reps. One of them (`0923d260`) has DESeq2 `.rds` inputs and its `pydeps` contains an agent-installed `rdata` — hence change 4's reading recipe. R is now installed, but reachable only via `rpy2`/`%%R`/`!Rscript` from Python cells; running the 21 R-native tasks _as_ R additionally requires setting `force_python: false` in `server.yaml`.
 
 **Consequences:**
+
 - Agent installs land in `kernel_env` or per-rollout `pydeps`, not `.venv` or the conda env.
 - Containment is PATH precedence, not enforcement. Absolute paths, `conda install`, and direct filesystem writes still escape. Only containerizing the kernel makes this a hard boundary.
 - `kernel_env` is disposable by design: rebuild it rather than repairing it.
 - `pydeseq2` resolves to 0.5.2, not latest. 0.5.4 requires numpy ≥ 2.5, and numba caps numpy at ≤ 2.4, which breaks `scanpy`, `muon`, and `umap`. Keep `numpy==1.26.4` pinned when adding packages here, and re-check those three imports afterwards.
 - `gatk=3.8` installs its binary as `gatk3`, not `gatk`.
-- `torch` comes from pip (CPU wheels), matching `Dockerfile:252` — it is not a conda package here. Importing `torch` *before* `numba`/`scanpy` raises `OSError: Could not find/load shared object file 'libllvmlite.so'` unless `LD_LIBRARY_PATH` includes `KERNEL_ENV_PATH/lib`. The kernel sets that (`interpreter_env.py:1512`), so agents are unaffected; bare `python -c` probes outside the kernel are not.
+- `torch` comes from pip (CPU wheels), matching `Dockerfile:252` — it is not a conda package here. Importing `torch` _before_ `numba`/`scanpy` raises `OSError: Could not find/load shared object file 'libllvmlite.so'` unless `LD_LIBRARY_PATH` includes `KERNEL_ENV_PATH/lib`. The kernel sets that (`interpreter_env.py:1512`), so agents are unaffected; bare `python -c` probes outside the kernel are not.
 - `keras=3.11.2` is installed but unimportable — Keras 3 defaults to the TensorFlow backend and TensorFlow is not installed (also true of the Dockerfile's env). `datasets` was omitted; the Dockerfile pins `datasets=2.2.1`. Neither is advertised in the system prompt.
-- The conda env has both `lib/python3.1` (a symlink) and `lib/python3.12`. `interpreter_env.py` takes `sorted(glob("python3.*"))[-1]`, which correctly yields `python3.12`; code that takes the *first* match instead would land on the symlink.
+- The conda env has both `lib/python3.1` (a symlink) and `lib/python3.12`. `interpreter_env.py` takes `sorted(glob("python3.*"))[-1]`, which correctly yields `python3.12`; code that takes the _first_ match instead would land on the symlink.
 
 **To revert:** Point `KERNEL_ENV_PATH` back at `/mlbio_scratch/wangsaja/kernel_env` (the uv-venv build, Python-only), or remove it entirely — the kernel then falls back to whatever `python` is first on PATH and Patch 7 goes inert again. `/mlbio_scratch/wangsaja/kernel_env_conda` can be deleted and rebuilt from `build_kernel_env_conda.sh`. Restore the four `prompts.py` edits listed above.
 
@@ -552,24 +578,26 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 
 **Files:** new `src/hypotest/env/judges/{__init__,base,hypotest_judge,biomni,heureka}.py`, new `src/hypotest/env/problem.py`, new `tests/test_judges.py`; `src/hypotest/env/interpreter_env.py`, `src/hypotest/dataset_server.py`, `scripts/convert_heurekabench.py`, `scripts/convert_bioagent_bench.py`, `capsules/heurekabench/problems_heurekabench_oe_full.jsonl`.
 
-**What:** Grading protocol is now a property of the *benchmark*, expressed as one registered function per benchmark, instead of a branch inside `_score_solution`.
+**What:** Grading protocol is now a property of the _benchmark_, expressed as one registered function per benchmark, instead of a branch inside `_score_solution`.
 
 1. **The registry (`judges/base.py`).** A judge is `async (JudgeContext, LiteLLMModel) -> JudgeResult`, registered with `@judge("name")`. `JudgeContext` carries the problem, the rendered notebook, and the submitted answer; `JudgeResult` carries `raw_score`, `max_score`, per-criterion dicts, prompt/response metadata, and an optional `correct` override (default: full marks). The judge owns its prompt, its response schema, **how many LLM calls it makes**, and how labels/levels become points. `call_json` is the shared one-call helper (send, brace-slice the JSON, validate, capture reasoning/chain-of-thought). Adding a benchmark = one new module + one import line in `judges/__init__.py`; no existing file changes and there is no dispatch table to extend.
 2. **Judge selection (`resolve_judge`).** `ProblemInstance.judge` (new field, set by the converter) → `InterpreterEnvConfig.judge` (run-wide override) → legacy rubric sniffing. The sniff is unchanged (`Levels: A=X B=Y C=0` → biomni, else hypotest), so datasets predating the field grade exactly as before. `biomni_grading: Literal["auto","biomni","hypotest"]` is **replaced** by `judge: str` on both `InterpreterEnvConfig` and `DatasetConfig`.
 3. **Existing judges ported verbatim.** Patch 17's two paths became `judges/hypotest_judge.py` (integer points per criterion, summed) and `judges/biomni.py` (A/B/C levels, `score_rich_levels` maps letters→points). Same prompts from `prompts.py`, same schemas, same arithmetic — only their location changed.
-4. **HeurekaBench is now a real judge**, not rubric prose. `judges/heureka.py` registers `heureka`. Following biomni's principle — *the LLM labels, Python does the arithmetic* — the model decomposes each sub-question's GT answer into atomic facts and labels each `PRESENT`/`PARTIAL`/`MISSING`/`INCORRECT`, then `_band()` computes the 0-5 G-Eval rating from the label counts. Fact labels land in `score_info.json`, so a rating is auditable fact by fact. **Only the open-ended split is covered** — HeurekaBench's MCQ split has no judge, and the converter leaves `judge` unset on MCQ problems so they keep falling through to hypotest's integer judge reading `MCQ_RUBRIC_PREAMBLE`, exactly as before this patch.
+4. **HeurekaBench is now a real judge**, not rubric prose. `judges/heureka.py` registers `heureka`. Following biomni's principle — _the LLM labels, Python does the arithmetic_ — the model decomposes each sub-question's GT answer into atomic facts and labels each `PRESENT`/`PARTIAL`/`MISSING`/`INCORRECT`, then `_band()` computes the 0-5 G-Eval rating from the label counts. Fact labels land in `score_info.json`, so a rating is auditable fact by fact. **Only the open-ended split is covered** — HeurekaBench's MCQ split has no judge, and the converter leaves `judge` unset on MCQ problems so they keep falling through to hypotest's integer judge reading `MCQ_RUBRIC_PREAMBLE`, exactly as before this patch.
 5. **Schemas and `ProblemInstance` moved out of `interpreter_env.py`** — the rubric schemas into the judge module that owns each, `ProblemInstance` into `env/problem.py`, and `derive_first_wrong_step`/`parse_criterion_max_scores` into `judges/base.py`. All are re-exported from `interpreter_env`, so every existing `from ...interpreter_env import X` still resolves. The judges package deliberately imports only pydantic/lmi and the pure-python rubric parsers, never `interpreter_env` — so `scripts/regrade.py` and `scripts/biomni_judge.py` can drop their mirrored copies (not done in this patch).
 6. **`_score_solution` shrank from ~90 lines to ~35** and holds only what is shared across benchmarks: resolve the judge, call it, derive `first_wrong_step`, normalize/clamp the reward, write `score_info.json`. The `finally`-writes-`score_info` semantics of Patch 17 are preserved, including on a failed parse before tenacity retries.
 
-**Why:** Three judging protocols already existed in three different *kinds* of place — a Python module (biomni), string constants (hypotest), and a converter's rubric preamble (HeurekaBench). Each new benchmark meant editing the prompt constants, the schema, the aggregation, and the sniffing branch, all inside one method. HeurekaBench in particular could only express its atomic-fact protocol as instructions to an integer-emitting judge, which left the fact decomposition invisible in the output and the 1-5 rating up to the model's arithmetic — the exact problem `biomni_judge.py` was written to remove.
+**Why:** Three judging protocols already existed in three different _kinds_ of place — a Python module (biomni), string constants (hypotest), and a converter's rubric preamble (HeurekaBench). Each new benchmark meant editing the prompt constants, the schema, the aggregation, and the sniffing branch, all inside one method. HeurekaBench in particular could only express its atomic-fact protocol as instructions to an integer-emitting judge, which left the fact decomposition invisible in the output and the 1-5 rating up to the model's arithmetic — the exact problem `biomni_judge.py` was written to remove.
 
 **Verification:**
+
 - `tests/test_judges.py` (16 tests): selection precedence (problem > config > sniff), every registered name resolves, unknown names raise, both legacy rubric families still sniff to their original judge, and the 0-5 band table.
 - `TestRubricGrading` (4 live gpt-5-mini rollouts, the default-judge regression) passes unchanged through the new path.
 - Live `heureka` run against `problems_heurekabench_oe_full.jsonl[0]` with a synthetic notebook + answer, judged by `anthropic/claude-sonnet-4-6`: sub-q1 decomposed into 7 atomic facts (5 PRESENT, 2 MISSING) → band 4; sub-q2 unanswered → 0; total 4/10, `score_info` criteria carry the per-fact labels.
 - Full suite still collects (114 tests + 16 new).
 
 **Consequences:**
+
 - **`server.yaml` breaking change:** `biomni_grading: X` must become `judge: X`. It is a `str` now, not a `Literal`, so an unregistered name fails at grading time with `unknown judge 'X'; registered: [...]` rather than at config-parse time.
 - HeurekaBench numbers from this judge are **not comparable** to numbers from grading the same rubrics with the hypotest judge: bands are now mechanical, so identical labels always yield an identical rating. There is nothing to re-grade (no HeurekaBench runs existed when this landed).
 - `capsules/heurekabench/problems_heurekabench_oe_full.jsonl` was tagged in place with `"judge": "heureka"` (41/41 rows). Without the tag it would have fallen through the sniff to the hypotest judge.
@@ -589,7 +617,7 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 1. **Judges can run without a model (`judges/base.py`).** `JudgeFn`'s model parameter is `LiteLLMModel | None`; `@judge(name, needs_model=True)` records whether a judge needs one; `JUDGES` holds a `Judge` NamedTuple (`name`, `fn`, `needs_model`) and `resolve_judge` returns it rather than a `(name, fn)` tuple. The three LLM judges assert the model is present.
 2. **`JudgeContext` gained `work_dir` and `truth_dir`.** LLM judges read the rendered notebook; a deterministic scorer reads the files the agent actually produced and compares them to an answer key. Both default to `None`, so nothing else had to change.
 3. **`truth_dir` plumbing.** `InterpreterEnv.__init__` takes it as a constructor arg (like `save_dir`). `Dataset.get_new_env_by_idx` resolves `<capsule_dir>/_truth/<input_data_path>` — the layout `stage_bioagent_capsules.py` already writes — and passes it only when it exists. It is never copied into the workspace, so the agent cannot read it. Benchmark-agnostic: any converter that stages a `_truth/<id>/` gets it.
-4. **`submit_answer` no longer skips scoring whenever `rubric_model is None`** — it skips only when the *resolved judge* needs a model. The matching `assert` at the top of `_score_solution` is gone. A bioagent-bench run needs no rubric model configured at all.
+4. **`submit_answer` no longer skips scoring whenever `rubric_model is None`** — it skips only when the _resolved judge_ needs a model. The matching `assert` at the top of `_score_solution` is gone. A bioagent-bench run needs no rubric model configured at all.
 5. **`judges/bioagent.py`** (`needs_model=False`) transcribes upstream's `scoring.py`: one check per task_id, run over every table the agent wrote under `results/`, compared against `_truth/<task_id>/`. Returns 0 or 1 out of 1 — `JudgeResult.max_score` overrides the problem's `max_points` of 10, so reward normalizes to 0.0/1.0 and is directly comparable to upstream's published table. Stdlib `csv` only, no pandas, so the judges package stays importable by the offline scripts. Matching policy is **tolerant on column naming, strict on values**: most checks intersect normalized cell values rather than requiring a named column, because agents do not reproduce the truth files' headers and upstream's checks are value comparisons anyway.
 6. **Wiring.** `convert_bioagent_bench.py` emits `judge: "bioagent"` and its docstring no longer claims hypotest has no non-LLM reward path; the 9 already-generated problems were tagged in place.
 7. **Offline re-graders guarded.** `regrade.py`, `regrade_forks.py` and `biomni_judge.py` all replay `score_info["prompt"]` through a different model. Deterministically-scored runs have no prompt, so those entries are now skipped (with a count printed in `regrade.py`) instead of raising `KeyError`.
@@ -597,14 +625,16 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 **Why:** bioagent-bench's real reward is `float(deterministic_match)` from a per-task Python function, but hypotest could only score through the rubric model. `convert_bioagent_bench.py` worked around that by restating each deterministic check as a prose question for an LLM to grade (criterion 1, 6 of 10 points) — a faithful-ish proxy that still put a language model between a CSV diff and the reward — and skipped `giab` entirely. Patch 23's registry already allowed a judge to make zero LLM calls; the only things missing were file access on the context and a way to say "this judge needs no model".
 
 **Verification:**
+
 - **Self-consistency**, 9/9: each task's own truth file, handed in as the agent's output, satisfies its check. This is the test that catches header/parsing mistakes, and it is parametrized in `tests/test_judges.py::TestBioagentChecks`.
 - **Negative sweep**, 9/9: a decoy table carrying every column name any check reads, with values matching no truth file, fails every check; so does an empty `results/`.
 - **No-model end-to-end** (`TestDeterministicGrading`): a real `InterpreterEnv` with `rubric_model=None`, agent writes the table from a notebook cell → `reward == 1.0`; no output → `0.0`. `score_info.json` records `grading_method: "bioagent"`, `max_score: 1`, and carries no `prompt` key.
 - 53 tests pass including the 4 live `TestRubricGrading` gpt-5-mini rollouts (LLM path untouched); full suite collects 141.
 
 **Consequences:**
+
 - bioagent-bench reward becomes binary 0/1 instead of graded /10. **Not comparable to any existing bioagent-bench run**; directly comparable to upstream's published pass/fail table.
-- `single-cell` and `transcript-quant` get strictly harder: the two rubric deviations recorded in `convert_bioagent_bench.py:41-49` (ignore the cluster number; sample transcripts instead of all 278) are *rubric* concessions to LLM grading. The scorer implements upstream's exact condition in both cases.
+- `single-cell` and `transcript-quant` get strictly harder: the two rubric deviations recorded in `convert_bioagent_bench.py:41-49` (ignore the cluster number; sample transcripts instead of all 278) are _rubric_ concessions to LLM grading. The scorer implements upstream's exact condition in both cases.
 - The rubric on these problems is now unused by default. It is kept as provenance and as the A/B fallback — `judge: hypotest` in `server.yaml` forces the old graded-/10 path back on the same problems.
 - `score_info.json` for these runs has no `prompt`/`response`/`criteria[].relevant_steps`, so `fork_trajectory.py`'s fork-point machinery has nothing to key on. Forking a deterministically-scored run is not supported.
 - `JudgeContext` gained fields and `resolve_judge` changed return type — any out-of-tree judge or caller needs updating.
@@ -621,24 +651,26 @@ Neither of the two exact-string anchors used to derive `_RUBRIC_LEVEL_PROMPT_TAI
 
 **What:** Support for `Anthropic/BioMysteryBench-full` (v11, 90 problems: 73 human-solvable, 17 hard), as a registered judge plus a converter.
 
-The dataset ships its grading criterion per problem in the `answer_rubric` column, and all 90 end with the same sentence: *"Score 1.0 if the model did not cheat AND got the answer correct. Score 0 otherwise."* Two properties define it, and the judge is built around both:
+The dataset ships its grading criterion per problem in the `answer_rubric` column, and all 90 end with the same sentence: _"Score 1.0 if the model did not cheat AND got the answer correct. Score 0 otherwise."_ Two properties define it, and the judge is built around both:
 
-1. **Correctness is judged on the FINAL ANSWER, not the path.** Anthropic's write-up is explicit that the benchmark grades "on their final answer, rather than the path the model took to get there" — the exact opposite of hypotest's own judge, which scores the notebook's procedure. So `biomystery` is a **two-call** judge: call 1 sees the question, the rubric and the submitted answer and *nothing else*; the notebook is withheld structurally rather than by asking one judge to ignore what is in front of it. Call 2 decides only whether the agent cheated, which is the one judgment that genuinely needs the transcript.
+1. **Correctness is judged on the FINAL ANSWER, not the path.** Anthropic's write-up is explicit that the benchmark grades "on their final answer, rather than the path the model took to get there" — the exact opposite of hypotest's own judge, which scores the notebook's procedure. So `biomystery` is a **two-call** judge: call 1 sees the question, the rubric and the submitted answer and _nothing else_; the notebook is withheld structurally rather than by asking one judge to ignore what is in front of it. Call 2 decides only whether the agent cheated, which is the one judgment that genuinely needs the transcript.
 2. **Scoring is binary and conjunctive.** Python ANDs the two booleans (`passed = answer_correct and not cheated`) rather than asking a model to apply the rule — the same "the LLM labels, Python does the arithmetic" split as `biomni.py` and `bioagent.py`. `JudgeResult.max_score=1`, so reward normalizes to 0.0/1.0.
 
 The cheating policy is transcribed from the dataset's README "Rules" and the v11 CHANGELOG "Grading rule": accession lookups (GEO/SRA/ENA/BioProject) to identify the source dataset, publication or study metadata are disallowed, as is otherwise reverse-identifying the dataset; standard bioinformatics database use (gene ID lookup, sequence annotation, reference genome download, BLAST) is allowed; and **recalling from memory is explicitly not cheating**, even when it includes the source publication. The prompt requires positive evidence and resolves ambiguity to "not cheated".
 
 `scripts/convert_biomysterybench.py` maps `problems.csv` → jsonl: `question` → `hypothesis`, `answer_rubric` → `rubric`, `max_points=1`, `judge: "biomystery"`, `task_style: "question"`, `human_solvable` and `allowed_domains` into metadata. `--extract` unpacks `data/<id>.zip` into per-problem capsules (~145 GB across 90); the default run writes only the jsonl.
 
-**Why:** Anthropic has published no grader prompt (the dataset is gated and its harness is not public), so the prompts here are written to the dataset's own stated criterion rather than copied. The parts that *are* specified — the binary conjunctive rule, the narrow cheating definition, and final-answer-only grading — are implemented literally, which is what "faithful" can mean here.
+**Why:** Anthropic has published no grader prompt (the dataset is gated and its harness is not public), so the prompts here are written to the dataset's own stated criterion rather than copied. The parts that _are_ specified — the binary conjunctive rule, the narrow cheating definition, and final-answer-only grading — are implemented literally, which is what "faithful" can mean here.
 
 **Verification:**
+
 - Converter reproduces the CHANGELOG's v11 split exactly: 90 problems, **73 human-solvable / 17 hard**. All 90 rubrics carry the expected scoring sentence (the converter warns if they do not, as a release check).
-- Live truth table on real problem `hb002` (answer: *Bacillus licheniformis*), judged by `anthropic/claude-sonnet-4-6`: correct+clean → **1**; wrong+clean → **0**; correct+cheated (notebook does an `esearch` on an SRA accession) → **0**; hedged among three candidates → **0**.
+- Live truth table on real problem `hb002` (answer: _Bacillus licheniformis_), judged by `anthropic/claude-sonnet-4-6`: correct+clean → **1**; wrong+clean → **0**; correct+cheated (notebook does an `esearch` on an SRA accession) → **0**; hedged among three candidates → **0**.
 - Unit tests with a stub model (no network): all four conjunction cases; **the correctness prompt provably does not contain the notebook** and the cheat prompt provably does not contain the answer key; metadata carries both calls.
 - 56 tests pass.
 
 **Consequences:**
+
 - `protocol` is deliberately empty on these problems — upstream shows the model the question and the extracted data files, nothing else. Run with `include_protocol: false`.
 - **Do not force `judge: hypotest` on this dataset.** That judge grades the notebook's procedure against a rubric that is really an answer key, which is neither the benchmark's metric nor comparable to it.
 - Two LLM calls per rollout instead of one; the second is short (notebook + policy, no rubric).
@@ -654,7 +686,7 @@ The cheating policy is transcribed from the dataset's README "Rules" and the v11
 **Files:** `src/hypotest/env/biomni_judge.py`, `scripts/regrade.py`, `tests/test_judges.py`.
 
 **What:** `parse_rubric_levels` required `\d+` for a level's point value, so a negative value did
-not parse. Every one of the **50** BiomniBench-DA rubrics ends with a *Source Reliability* penalty
+not parse. Every one of the **50** BiomniBench-DA rubrics ends with a _Source Reliability_ penalty
 criterion declaring `Levels: A=0 B=-5 C=-10`. The header regex matched greedily up to the first
 negative and stopped, capturing only `"A=0 "`, so the criterion parsed to `{"A": 0}`.
 
@@ -671,20 +703,21 @@ Consequences of that, both now fixed by the same change:
 Four patterns gained `-?`: the `Levels:` header and its per-level `finditer` in
 `parse_rubric_levels`, the legacy `[A] (N points)` fallback in the same function, and the two
 malformed-response fallbacks in `score_from_response` — where a bare `(\d+)` against
-`"total_score": -5` matched the digits *after* the minus and read it as **+5**. `scripts/regrade.py`
+`"total_score": -5` matched the digits _after_ the minus and read it as **+5**. `scripts/regrade.py`
 carries a mirrored copy of the parser and had the same defect in both of its patterns.
 
 Nothing else changed. `score_rich_levels` already summed whatever points it was given, so a penalty
 now simply subtracts; its existing `max(0, min(100, total))` clamp keeps the reward non-negative.
-Level `A` on a penalty criterion is 0 points, which *is* full marks for it, so the full-marks gate
+Level `A` on a penalty criterion is 0 points, which _is_ full marks for it, so the full-marks gate
 still correctly returns `None` there.
 
 **Why:** found by the Patch 23/24/25 judge sweep (`judge-test/`). Rollout `c8894f11` was graded
-level `B` on *Source Reliability* and scored 0 instead of -5, and the same criterion reported
+level `B` on _Source Reliability_ and scored 0 instead of -5, and the same criterion reported
 `first_wrong_step: null` while carrying a step marked `"correct": false` — the two symptoms of one
 missing character.
 
 **Verification:**
+
 - `TestRubricLevelParsing` (8 tests): negative levels parse in both rubric formats, the penalty is
   subtracted, level `A` costs nothing, the total still clamps at 0, the full-marks gate keeps
   `first_wrong_step` on a penalised criterion but not on a met one, `"total_score": -5` no longer
@@ -696,11 +729,12 @@ missing character.
 - 61 tests pass (`tests/test_judges.py`, `tests/test_prompts.py`).
 
 **Consequences:**
+
 - **BiomniBench-DA scores drop by 0-10 points per rollout** wherever the judge chose `B` or `C` on
   the penalty criterion. Existing BiomniBench-DA numbers are inflated and not comparable to numbers
   from this commit onward; `scripts/regrade.py` can recompute them from saved `score_info.json`
   without re-running the judge.
-- An *unrecognized* level on a penalty criterion now costs `min(...) == -10` rather than 0, per the
+- An _unrecognized_ level on a penalty criterion now costs `min(...) == -10` rather than 0, per the
   existing "unrecognized level → lowest defined value" rule.
 
 **To revert:** drop the four `-?` in `biomni_judge.py`, the two in `scripts/regrade.py`, and delete
@@ -708,7 +742,7 @@ missing character.
 
 ---
 
-## Patch 27 — sequential forking: fork the fork until full reward or out of steps  **[REVERTED 2026-08-04]**
+## Patch 27 — sequential forking: fork the fork until full reward or out of steps **[REVERTED 2026-08-04]**
 
 > **Status: reverted.** Sequential forking and its judge-side anchoring are gone from the tree —
 > `fork_trajectory.py` forks each trajectory exactly once again, and no judge is told anything
@@ -726,6 +760,7 @@ missing character.
 > would now reject), and its default `OUT_DIR` moved off `seq-forks-…`.
 >
 > **Two deviations from the revert list below:**
+>
 > 1. `fork_trajectory.py` was rewritten by hand, not restored from git history — `scripts/` is
 >    untracked, so there is no history to restore from.
 > 2. `inspect_fork.py` was **deliberately kept** as-is (plus a `submitted` badge class). Its chain
@@ -734,7 +769,7 @@ missing character.
 >    chains already under `archive/`, which remain readable only through it.
 >
 > **Consequence for existing artifacts:** every forked run under `archive/` was graded with the
-> resume + prior-score prompt notes, so those grades are *not* comparable with anything produced
+> resume + prior-score prompt notes, so those grades are _not_ comparable with anything produced
 > from this commit onward. Any fork A/B needs both arms re-run.
 
 **Files:** `scripts/fork_trajectory.py` (rewritten), `scripts/inspect_fork.py`,
@@ -759,7 +794,7 @@ Three pieces:
    The floor lives in the shared post-judge path, so it applies to **every** registered judge.
 
 2. **`resume_from_step`**, plumbed from `InterpreterEnv` (an instance attribute, set
-   post-construction by the fork script — deliberately *not* an `InterpreterEnvConfig` field,
+   post-construction by the fork script — deliberately _not_ an `InterpreterEnvConfig` field,
    since `DatasetConfig` splats into that and it would leak into the dataset-server path) through
    `JudgeContext` into the judges. `_score_solution` passes it as `min_step` and records it in
    `score_metadata`, so `score_info.json` documents the floor that was applied. Also widened
@@ -802,7 +837,7 @@ round 4:  [replay 0..48                    ][ ]  K=49 -> STOP, no room
 ```
 
 As the fork point creeps later, generation room shrinks to nothing and the chain stops with
-`no_room` — checked *before* spinning up a container, so a doomed round costs nothing. Only the
+`no_room` — checked _before_ spinning up a container, so a doomed round costs nothing. Only the
 current round's feedback is injected; earlier rounds' guidance is not replayed into the rebuilt
 context.
 
@@ -814,7 +849,7 @@ which nesting rounds would have broken. Each round is its own top-level dir
 (= that round's fork cell) so the viewer's "fws cell X → Y" header still renders. Per chain,
 `forks/<root_traj_id>-chain.json` holds the ordered rounds, `score_trace` and `stop_reason`;
 `--skip-existing` keys on that file. `fork_summary.json` gains a `"chains"` key and keeps the flat
-`"forked"` list of every round. `--num-parallel` now caps concurrent *chains* (rounds within a
+`"forked"` list of every round. `--num-parallel` now caps concurrent _chains_ (rounds within a
 chain are sequential by construction).
 
 **Viewer (`scripts/inspect_fork.py`).** It rendered each fork dir as an independent panel, which
@@ -866,7 +901,7 @@ panel, exactly as it did single forks.
 | `hypotest`   | yes                                                  | yes        | yes        | the bixbench-hypothesis path `server.yaml` currently runs                                                                                            |
 | `biomni`     | yes                                                  | yes        | yes        | A/B/C levels; its prompt is `.replace()`-derived from the hypotest tail, so it inherits the contract verbatim                                        |
 | `heureka`    | yes                                                  | yes        | yes        | own prompt, same field contract                                                                                                                      |
-| `biomystery` | anti-cheat evidence only                             | **no**     | degenerate | one synthetic criterion whose steps flag *cheating*, not analysis errors, and no `feedback` key — a fork would land on a cheat step with no guidance |
+| `biomystery` | anti-cheat evidence only                             | **no**     | degenerate | one synthetic criterion whose steps flag _cheating_, not analysis errors, and no `feedback` key — a fork would land on a cheat step with no guidance |
 | `bixbench`   | hardcoded `[]`                                       | no         | **no**     | derivation always yields `None` → `SkipFork`                                                                                                         |
 | `bioagent`   | n/a (deterministic file scorer, `needs_model=False`) | no         | **no**     | same                                                                                                                                                 |
 
@@ -888,6 +923,7 @@ a time, and how many corrections does that take? The `score_trace` and `fork_cel
 termination argument at all.
 
 **Verification:**
+
 - `TestSequentialForkFloor` (5 tests): the floor is inclusive and skips the frozen prefix
   (`min_step` 0/3/4/11/12 → 3/3/11/11/None), the default is byte-identical to omitting it, the
   full-marks gate still wins over the floor, and `with_resume_note` is the identity without a fork
@@ -906,8 +942,9 @@ termination argument at all.
 | fork point reaches cell 48 — still 2 steps of room | continues             | `[4, 48]`   |
 | target cell never appended in the parent           | `cell_never_appended` | `[4]`       |
 
-  The fifth row is the one that matters: without the floor that round would have forked
-  *backwards* to cell 2 and the chain would never terminate.
+The fifth row is the one that matters: without the floor that round would have forked
+_backwards_ to cell 2 and the chain would never terminate.
+
 - 190 tests pass; `mypy --scripts-are-modules` is clean on every touched file (the standing
   `scripts/regrade.py:195` and `scripts/inspect_trajectory.py` errors are untouched and pre-date
   this patch).
@@ -937,13 +974,13 @@ history. The `score_metadata` annotation widening can stay — it is independent
 
 ---
 
-## Patch 28 — ablation: fork feedback from *every* criterion, not just the driving ones
+## Patch 28 — ablation: fork feedback from _every_ criterion, not just the driving ones
 
 **Files:** `scripts/fork_trajectory_allfb.py`, `fork.allfb.bash` (both **new**; the baseline
 `scripts/fork_trajectory.py` and `fork.bash` are untouched).
 
 **What:** an A/B arm for the fork-feedback rule. The baseline forks at the earliest per-criterion
-`first_wrong_step` and injects the `feedback` of only the criteria sitting at *that* cell
+`first_wrong_step` and injects the `feedback` of only the criteria sitting at _that_ cell
 (`select_fork_criterion` → `criterion_feedback`). This arm keeps the fork **cell** identical and
 widens only the note, to the feedback of every criterion that has any, split into two sections:
 
@@ -959,7 +996,7 @@ Also address as you continue:
 Take this into account as you continue.
 ```
 
-Criterion *names* are omitted — they are full sentences (median 104 chars, max 288 across the
+Criterion _names_ are omitted — they are full sentences (median 104 chars, max 288 across the
 archived runs) and would swamp the guidance they label.
 
 "Every criterion" resolves to "every criterion that lost points": the judge emits `feedback: null`
@@ -982,6 +1019,7 @@ own `OUT_DIR`, the variant's script path, and its own `pgrep` pattern — `pgrep
 
 **Verification** (offline, no LLM calls — both implementations driven over the 153 archived
 `score_info.json` files):
+
 - Fork cell identical to the baseline on all **143** forkable runs.
 - Bullets per fork rise from mean **1.90** (max 7) to mean **3.55** (max 9).
 - The `Start here` section's bullet set equals the baseline's note exactly, every run.
@@ -1045,7 +1083,7 @@ This is pre-existing, not introduced by Patch 25: HeurekaBench capsules are one-
 multi-GB `.h5ad` files, and several bioagent-bench capsules carry reference genomes. BioMysteryBench
 is simply the first dataset where the copy is larger than anything the agent does with it.
 
-Note the converters already hardlink at *staging* time (`stage_bioagent_capsules.py`,
+Note the converters already hardlink at _staging_ time (`stage_bioagent_capsules.py`,
 `convert_heurekabench.py` — "hardlinked flat so the agent sees them by basename"). That dedupes the
 source tree against the download; it does nothing for the per-rollout copy, which is a real copy.
 
@@ -1083,7 +1121,7 @@ rollout of that problem. Copy-on-write (`cp --reflink`) is not available — the
 
 ## Interactions to check when fixing
 
-- **`close()`** (`interpreter_env.py:1082`, `:1121-1122`): `shutil.rmtree(work_dir)` does *not*
+- **`close()`** (`interpreter_env.py:1082`, `:1121-1122`): `shutil.rmtree(work_dir)` does _not_
   follow symlinks — it unlinks them — so cleanup is safe. But `shutil.move(work_dir, save_dir)`
   preserves symlinks, so an archived run under `save_dir` would hold links into the capsule tree.
   Those stay valid only while the capsules do; anything that later tars or relocates `save_dir` must
@@ -1118,7 +1156,7 @@ is a reordering that reaches the same numbers in half the memory.
 ### What upstream does
 
 `ChunkedDistributedLogprob.backward` preallocates the whole gradient for the whole sequence, then
-performs **two** operations *on that buffer*:
+performs **two** operations _on that buffer_:
 
 ```python
 grad_input = torch.zeros_like(vocab_parallel_logits, dtype=torch.float32)   # :~329
@@ -1200,7 +1238,7 @@ reverting.
 ### Maintenance note
 
 Three patches now rewrite `model_utils.py`, one rewrites `automodel/setup.py`. Confirm they applied
-by grepping the run log for `patching`. Unlike the TP-plan patch — which works around *our* unusual
+by grepping the run log for `patching`. Unlike the TP-plan patch — which works around _our_ unusual
 model layout — this one is generic: any NeMo RL user with a large vocabulary at long sequence length
 pays 2× on the largest tensor in the backward pass for no numerical benefit. **Worth reporting
 upstream at `NVIDIA/NeMo-RL`**; `scratchpad/verify_patch.py` reproduces it with no hypotest
@@ -1215,7 +1253,7 @@ dependency.
 `rl/runai/workloads.sh`, `tests/conftest.py` (`images_enabled` fixture).
 
 **What:** `STRIP_IMAGES` (default **true**, env-var overridable) removes images from everything the
-model sees. The notebook keeps them — this changes the *model's* view, not the saved record.
+model sees. The notebook keeps them — this changes the _model's_ view, not the saved record.
 
 **Why:** a plot returns as a base64 data URI. A vision-capable server prices it by pixels (~1.8k
 tokens), but the GRPO path serves the policy with `language_model_only: true` — no vision tower —
@@ -1243,8 +1281,8 @@ both `get_images()` and `has_images()`), `read("chart.png")`, `read("nb.ipynb")`
 docstring-only, unimplemented.
 
 **Prompt change (reward-affecting, made deliberately):** `DEFAULT_SYSTEM_PROMPT` §4 previously said
-*"this is very important, at the end of the analysis you should always aim to create a final
-figure"* — the instruction that killed both episodes, asking for the one artifact the grader cannot
+_"this is very important, at the end of the analysis you should always aim to create a final
+figure"_ — the instruction that killed both episodes, asking for the one artifact the grader cannot
 see. Replaced with an explicit prohibition; the ggplot2 mandate, its worked example, and the
 plotting libraries in the capability lists were removed too.
 
@@ -1275,7 +1313,7 @@ zero policy gradient = the model never learns. This was mis-attributed to
 0.8889 sums to 3.5556, which already exceeds the batch's 3.5412 total reward, so
 within-group reward variance **must** exist).
 
-**Root cause.** NeMo RL computes the leave-one-out baseline per *prompt group*, and
+**Root cause.** NeMo RL computes the leave-one-out baseline per _prompt group_, and
 it derives the group key from message **content**:
 `_extract_prompt_only_messages()` keeps every `user`/`system` message in the
 trajectory (assistant excluded), flattens to token ids, and groups with

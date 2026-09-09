@@ -52,7 +52,7 @@ forkable again.
 ### The all-feedback ablation
 
 `fork_trajectory_allfb.py` is a second arm that changes exactly one variable: it
-injects the feedback from *every* criterion that lost points, not just the ones
+injects the feedback from _every_ criterion that lost points, not just the ones
 at the fork cell. The fork cell itself is computed identically, so the two arms
 are comparable cell-for-cell. It rebinds two functions on the baseline module
 rather than copying it, which is what keeps them from drifting apart.
@@ -87,7 +87,7 @@ make image
 
 ## Get the task data
 
-Each task is a *capsule* — a folder of input data plus a hypothesis and rubric:
+Each task is a _capsule_ — a folder of input data plus a hypothesis and rubric:
 
 ```bash
 hf sync hf://buckets/EdisonScientific/bixbench-hypothesis-capsules capsules/hypotest/

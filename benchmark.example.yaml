@@ -6,7 +6,7 @@
 # per-rollout score_info.json the server wrote into its own save_dir.
 
 server_url: http://localhost:8008
-api_key: HYPOTEST_API_KEY   # a bare name is read from the environment; must match the server
+api_key: HYPOTEST_API_KEY # a bare name is read from the environment; must match the server
 
 results_dir: benchmark_results/
 
@@ -34,11 +34,11 @@ agent_config:
               temperature: 1.0
               reasoning_effort: medium
 
-          # To drive a locally served policy (vLLM etc.), add it here and set
-          # llm_model.name above to match. api_base is per-deployment, so keep
-          # it out of version control.
-          # - model_name: my-local-policy
-          #   litellm_params:
-          #     model: openai/Qwen/Qwen3.6-27B
-          #     api_base: http://<host>:8000/v1
-          #     api_key: none
+        # To drive a locally served policy (vLLM etc.), add it here and set
+        # llm_model.name above to match. api_base is per-deployment, so keep
+        # it out of version control.
+        # - model_name: my-local-policy
+        #   litellm_params:
+        #     model: openai/Qwen/Qwen3.6-27B
+        #     api_base: http://<host>:8000/v1
+        #     api_key: none

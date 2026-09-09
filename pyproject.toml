@@ -47,10 +47,6 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 version = "0.0.1"
 
-[project.scripts]
-hypotest-benchmark = "hypotest.benchmark_agent:cli"
-hypotest-server = "hypotest.dataset_server:cli"
-
 [project.optional-dependencies]
 dev = [
     "ipdb",
@@ -75,10 +71,20 @@ ray = [
     "ray",
 ]
 
+[project.scripts]
+hypotest-benchmark = "hypotest.benchmark_agent:cli"
+hypotest-server = "hypotest.dataset_server:cli"
+
 [tool.codespell]
 check-filenames = true
 check-hidden = true
-skip = "uv.lock"
+# Domain vocabulary and identifiers, not typos: OTU is an Operational Taxonomic
+# Unit, lasR is a Pseudomonas quorum-sensing gene, STING is the protein, `ans`
+# is an answer variable, and "unparseable" is a valid variant.
+ignore-words-list = "ans,lasr,otu,sting,unparseable"
+# Machine-generated records: benchmark task text and agent output. We did not
+# write this prose and must not "correct" it -- doing so would alter the data.
+skip = "uv.lock,rl/data/*,proposer/*,capsules/*,archive/*,./rl/data/*,./proposer/*,./capsules/*,./archive/*"
 
 [tool.coverage]
 
