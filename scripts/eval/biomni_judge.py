@@ -32,7 +32,7 @@ Usage:
 
     # Local/vLLM OpenAI-compatible endpoint, and write per-dir + summary outputs:
     .venv/bin/python scripts/biomni_judge.py \
-        --model openai/Qwen/Qwen3.6-27B --api-base http://172.16.44.53:8000/v1 \
+        --model openai/Qwen/Qwen3.6-27B --api-base http://localhost:8000/v1 \
         --api-key none --results results/ --write
 
     # Native BiomniBench-DA single task:

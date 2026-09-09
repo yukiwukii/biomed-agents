@@ -9,7 +9,7 @@ dev = [
 
 [project]
 authors = [
-    {email = "support@edisonscientific.com", name = "Edison Scientific Technical Staff"},
+    {email = "nadyayukiw@gmail.com", name = "yukiwukii"},
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -37,15 +37,19 @@ dependencies = [
     "ray",
     "tenacity>=8.0",
 ]
-description = "hypotest package"
+description = "Trajectory forking for agent evaluation: rewind a graded agent run to its first wrong step, inject judge feedback, and re-roll. Forked from EdisonScientific/hypotest."
 keywords = []
 maintainers = [
-    {email = "support@edisonscientific.com", name = "Edison Scientific Technical Staff"},
+    {email = "nadyayukiw@gmail.com", name = "yukiwukii"},
 ]
 name = "hypotest"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 version = "0.0.1"
+
+[project.scripts]
+hypotest-benchmark = "hypotest.benchmark_agent:cli"
+hypotest-server = "hypotest.dataset_server:cli"
 
 [project.optional-dependencies]
 dev = [

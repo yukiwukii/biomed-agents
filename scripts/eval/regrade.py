@@ -19,7 +19,7 @@ Usage:
     # OpenAI-compatible / local vLLM endpoint:
     conda run -n bixbench python3 scripts/regrade.py \
         --model openai/Qwen/Qwen3.6-27B \
-        --api-base http://172.16.44.53:8000/v1 --api-key none
+        --api-base http://localhost:8000/v1 --api-key none
 
     # also write outputs (new rewards json + patched pkl):
     conda run -n bixbench python3 scripts/regrade.py --model ... --write

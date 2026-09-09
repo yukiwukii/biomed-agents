@@ -249,3 +249,8 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+def cli() -> None:
+    """Console-script entry point (``hypotest-benchmark``)."""
+    asyncio.run(main())

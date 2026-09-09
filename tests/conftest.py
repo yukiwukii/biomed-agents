@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import urllib.request
 from uuid import UUID
 
 import pytest
@@ -19,6 +20,26 @@ requires_matplotlib = pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matpl
 logger = logging.getLogger(__name__)
 
 IN_GITHUB_ACTIONS: bool = os.getenv("GITHUB_ACTIONS") == "true"
+
+# Tests that reach the network or a paid API. A fresh clone has neither, and a
+# fork PR cannot see repository secrets, so these skip rather than fail -- an
+# outside contributor should get a green run without credentials.
+requires_openai = pytest.mark.skipif(
+    not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
+)
+def skip_if_hub_unreachable() -> None:
+    """Skip the calling test when huggingface.co cannot be reached.
+
+    Called from inside the test rather than used as a marker so that a genuine
+    dataset error (renamed, gated, schema drift) still FAILS -- only a transport
+    failure skips. Set HYPOTEST_SKIP_NETWORK_TESTS=1 to skip unconditionally.
+    """
+    if os.getenv("HYPOTEST_SKIP_NETWORK_TESTS") == "1":
+        pytest.skip("HYPOTEST_SKIP_NETWORK_TESTS=1")
+    try:
+        urllib.request.urlopen("https://huggingface.co", timeout=5).close()
+    except OSError as exc:
+        pytest.skip(f"huggingface.co unreachable: {exc}")
 
 
 def docker_image_exists() -> bool:

@@ -1,15 +1,46 @@
-"""Compare pass@3 and avg@3 between original rewards and forked results."""
+"""Compare pass@k and avg@k between a benchmark run and the forks taken from it.
 
+This is the headline fork metric: how much of the original failure was
+recoverable once the agent was rewound to its first wrong step and handed the
+judge's feedback.
+
+Usage:
+    python scripts/fork/compare_rewards.py \\
+        --rewards  benchmark_results/rewards.json \\
+        --fork-summary forks/fork_summary.json
+
+``--rewards`` is the ``rewards.json`` written by ``benchmark_agent.py``; it is a
+flat map of ``task_<i>_rep<j>`` to score. ``--fork-summary`` is the
+``fork_summary.json`` written by ``fork_trajectory.py``. A trajectory with
+several forks contributes the mean of their ``new_score``.
+
+k is inferred from the data (the number of replications per task), so this works
+for any pass@k, not just pass@3.
+"""
+
+import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_rewards(rewards_path: Path) -> dict[str, float]:
     with open(rewards_path) as f:
         return json.load(f)
+
+
+def _replications_per_task(rewards: dict[str, float]) -> int:
+    """The k in pass@k: the most common number of replications per task.
+
+    Reported rather than assumed, because a run whose replications partly failed
+    would otherwise be labelled with a k it does not have.
+    """
+    tasks: dict[str, int] = defaultdict(int)
+    for traj_id in rewards:
+        tasks[traj_id.rsplit("_rep", 1)[0]] += 1
+    if not tasks:
+        return 0
+    return max(set(tasks.values()), key=list(tasks.values()).count)
 
 
 def compute_metrics(rewards: dict[str, float]) -> tuple[float, float]:
@@ -46,28 +77,44 @@ def merge_fork_rewards(
 
 
 def main() -> None:
-    orig_rewards = load_rewards(REPO_ROOT / "benchmark_results_hypotest" / "rewards.json")
-    fork_summary_path = REPO_ROOT / "forks-w" / "fork_summary.json"
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--rewards",
+        type=Path,
+        required=True,
+        help="rewards.json from the benchmark run that was forked",
+    )
+    ap.add_argument(
+        "--fork-summary",
+        type=Path,
+        default=None,
+        help="fork_summary.json from the fork run. Omit to report the baseline only.",
+    )
+    args = ap.parse_args()
 
-    orig_pass3, orig_avg3 = compute_metrics(orig_rewards)
+    if not args.rewards.is_file():
+        raise SystemExit(f"no rewards.json at {args.rewards}")
+
+    orig_rewards = load_rewards(args.rewards)
+    orig_pass, orig_avg = compute_metrics(orig_rewards)
+    k = _replications_per_task(orig_rewards)
 
     print("=== Original ===")
-    print(f"  pass@3: {orig_pass3:.4f}")
-    print(f"  avg@3:  {orig_avg3:.4f}")
+    print(f"  pass@{k}: {orig_pass:.4f}")
+    print(f"  avg@{k}:  {orig_avg:.4f}")
 
-    if fork_summary_path.exists():
-        merged = merge_fork_rewards(orig_rewards, fork_summary_path)
-        fork_pass3, fork_avg3 = compute_metrics(merged)
-        n = len({k.rsplit("_rep", 1)[0] for k in merged})
+    if args.fork_summary is None:
+        return
+    if not args.fork_summary.is_file():
+        raise SystemExit(f"no fork_summary.json at {args.fork_summary}")
 
-        n_pass_orig = round(orig_pass3 * n)
-        n_pass_fork = round(fork_pass3 * n)
+    merged = merge_fork_rewards(orig_rewards, args.fork_summary)
+    fork_pass, fork_avg = compute_metrics(merged)
+    n = len({key.rsplit("_rep", 1)[0] for key in merged})
 
-        print("\n=== After Forking ===")
-        print(f"  pass@3: {fork_pass3:.4f}  ({n_pass_fork}/{n}, Δ{fork_pass3 - orig_pass3:+.4f})")
-        print(f"  avg@3:  {fork_avg3:.4f}  (Δ{fork_avg3 - orig_avg3:+.4f})")
-    else:
-        print(f"\nNo fork_summary.json found at {fork_summary_path}")
+    print("\n=== After forking ===")
+    print(f"  pass@{k}: {fork_pass:.4f}  ({round(fork_pass * n)}/{n}, Δ{fork_pass - orig_pass:+.4f})")
+    print(f"  avg@{k}:  {fork_avg:.4f}  (Δ{fork_avg - orig_avg:+.4f})")
 
 
 if __name__ == "__main__":

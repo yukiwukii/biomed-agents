@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
 #
+# ─────────────────────────────────────────────────────────────────────────────
+# SITE-SPECIFIC REFERENCE, NOT A SUPPORTED ENTRY POINT.
+#
+# This is the orchestration we actually used, kept because it records real
+# operating knowledge (see the api_base/model sed guard below, which exists to
+# stop a misconfigured run from silently billing a hosted API instead of using
+# the GPU you just paid for). It assumes a run:ai cluster, a `csub.py`
+# submission helper that does NOT ship with this repo, a shared filesystem
+# mounted at the same path in every pod, and two prebuilt images.
+#
+# REMOTE_DIR, BIXBENCH_IMAGE and MLO_IMAGE have no defaults and must be set.
+# NODE_TYPE (default h100) and POD_HOME (default REMOTE_DIR) are optional.
+#
+# The portable entry point is the Python script directly:
+#   python scripts/fork/fork_trajectory.py --pkl ... --results ... --out-dir ...
+# ─────────────────────────────────────────────────────────────────────────────
+#
 # One-shot orchestrator for forking benchmarked trajectories on run:ai.
 #
 # Submits TWO jobs:
 #   1. policy   (mlo-base image, 1x H100) -> serves vLLM (${POLICY_MODEL})
-#   2. sandbox  (bixbench image, no GPU)  -> runs scripts/fork_trajectory.py
+#   2. sandbox  (bixbench image, no GPU)  -> runs scripts/fork/fork_trajectory.py
 #
 # Unlike launch_all.bash, the sandbox does NOT start the dataset server:
 # fork_trajectory.py imports Dataset directly and builds the env in-process.
@@ -61,10 +78,10 @@ OUT_DIR="${OUT_DIR:-archive/sonnet-judge/forks-driving-hypotest-wo-protocol/}"
 # cleanly rather than failing.
 # ═════════════════════════════════════════════════════════════════════════════
 
-REMOTE_DIR="/mlbio_scratch/wangsaja/hypotest"
+: "${REMOTE_DIR:?set REMOTE_DIR to this repo path as seen from inside the pods}"
 
-BIXBENCH_IMAGE="ic-registry.epfl.ch/yuki/bixbench:latest"
-MLO_IMAGE="ic-registry.epfl.ch/mlo/mlo-base:uv1"
+: "${BIXBENCH_IMAGE:?set BIXBENCH_IMAGE to an image built from this repo Dockerfile}"
+: "${MLO_IMAGE:?set MLO_IMAGE to an image that can serve vLLM}"
 
 POLICY_JOB="policy-fork"
 SANDBOX_JOB="sandbox-fork"
@@ -101,7 +118,7 @@ else
 fi
 
 # ----------------------------------------------------------------------------- preflight
-# The sandbox mounts the same /mlbio_scratch, so when this machine can see REMOTE_DIR
+# The sandbox mounts the same shared filesystem, so when this machine can see REMOTE_DIR
 # we can catch a bad path here rather than after paying for an H100 to spin up.
 if [ -d "${REMOTE_DIR}" ]; then
   [ -e "${REMOTE_DIR}/${SERVER_CONFIG}" ] || {
@@ -140,7 +157,7 @@ echo "==> Submitting policy (vLLM) training job..."
 python3.11 csub.py \
   -n "${POLICY_JOB}" \
   --train \
-  -g 1 --node-type h100 \
+  -g 1 --node-type ${NODE_TYPE:-h100} \
   -i "${MLO_IMAGE}" \
   --exp-folder "${REMOTE_DIR}" \
   --venv .venv_policy \
@@ -175,7 +192,7 @@ echo "==> vLLM is up at ${POLICY_API_BASE}"
 # ----------------------------------------------------------------------------- 3. sandbox: fork trajectory (NO dataset server)
 SANDBOX_CMD=$(cat <<EOF
 set -euo pipefail
-export HOME=/mlbio_scratch/wangsaja
+export HOME=${POD_HOME:-${REMOTE_DIR}}
 cd ${REMOTE_DIR}
 source .venv/bin/activate
 unset PYTHONPATH
@@ -203,7 +220,7 @@ grep -qE "^      name: ${POLICY_MODEL//\//\\/}\$" benchmark.fork.gen.yaml || {
 }
 echo "==> policy model: \$(grep -E '^      name: ' benchmark.fork.gen.yaml)"
 
-timeout -k 30s ${FORK_TIMEOUT} python scripts/fork_trajectory.py \\
+timeout -k 30s ${FORK_TIMEOUT} python scripts/fork/fork_trajectory.py \\
   ${TRAJ_ARG} \\
   --server-config ${SERVER_CONFIG} \\
   --benchmark-config benchmark.fork.gen.yaml \\

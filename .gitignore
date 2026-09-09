@@ -171,7 +171,13 @@ rl/models/
 
 # Internal engineering notes: cluster topology, run diaries, handoffs and
 # work-in-progress. Public documentation lives in README.md.
-docs/
+#
+# docs/* rather than docs/, because git cannot re-include a file whose parent
+# directory is excluded -- patches.md has to stay reachable. It is the record of
+# how this fork diverges from upstream, and the "PATCH N" markers throughout
+# src/ point at it.
+docs/*
+!docs/patches.md
 
 # Local virtualenvs not matched by the .venv rule
 .venv_policy/

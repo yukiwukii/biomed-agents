@@ -3,8 +3,11 @@ from tempfile import TemporaryDirectory
 from hypotest.dataset_server import Dataset, DatasetConfig
 from hypotest.env.interpreter_env import ProblemInstance
 
+from .conftest import skip_if_hub_unreachable
+
 
 def test_load_from_hf():
+    skip_if_hub_unreachable()
     with TemporaryDirectory() as tmpdir:
         config = DatasetConfig(
             hf_dataset="EdisonScientific/bixbench_hypothesis",

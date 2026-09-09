@@ -25,7 +25,7 @@ from hypotest.env.interpreter_env import (
 )
 from hypotest.env.kernel_server import NBLanguage
 
-from .conftest import requires_matplotlib, should_skip_docker_test
+from .conftest import requires_matplotlib, requires_openai, should_skip_docker_test
 
 
 @pytest_asyncio.fixture
@@ -887,6 +887,7 @@ class TestRubricGrading:
             ),
         ],
     )
+    @requires_openai
     async def test_rubric_grading(self, code: list[str], answer: str):
         """Test rubric-based grading with gpt-5-mini."""
         rubric_model = LiteLLMModel(name="openai/gpt-5-mini")

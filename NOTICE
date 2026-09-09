@@ -1,0 +1,34 @@
+biomed-agents
+Copyright 2026 yukiwukii
+
+This product includes software developed at Edison Scientific.
+
+Portions of this work are derived from hypotest
+(https://github.com/EdisonScientific/hypotest), licensed under the
+Apache License, Version 2.0. A copy of that license is in the LICENSE file.
+
+This is a modified version. It is an independent fork and is not affiliated
+with, endorsed by, or supported by Edison Scientific.
+
+Summary of modifications
+------------------------
+The upstream project provides the Jupyter-kernel execution environment, the
+dataset server, and the benchmark agent. Work added in this fork:
+
+  * Trajectory forking (scripts/fork/) -- rewinding a graded agent run to the
+    earliest step a judge marked wrong, injecting that judge's feedback, and
+    re-rolling from there, plus the all-feedback ablation arm and the tooling to
+    inspect and re-grade the results.
+  * A pluggable judge framework (src/hypotest/env/judges/) covering BixBench,
+    BioMysteryBench, HeurekaBench, BiomniBench-DA and bioagent-bench, including
+    deterministic (non-LLM) grading and the per-criterion first-wrong-step
+    derivation that forking depends on.
+  * Benchmark dataset converters and capsule staging (scripts/data/).
+  * A hypothesis-proposer subsystem (proposer/).
+  * An RL/GRPO training stack (rl/) -- incomplete; see README.md.
+  * Substantial changes to the execution environment itself, including image
+    stripping, an idle-environment sweeper, configurable notebook output limits
+    and prompt revisions.
+
+Individual modifications are recorded in docs/patches.md, and modified files
+carry "PATCH N" markers referring to it.

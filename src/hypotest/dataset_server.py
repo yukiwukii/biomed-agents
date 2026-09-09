@@ -345,3 +345,8 @@ async def launch_server():
 
 if __name__ == "__main__":
     asyncio.run(launch_server())
+
+
+def cli() -> None:
+    """Console-script entry point (``hypotest-server``)."""
+    asyncio.run(launch_server())

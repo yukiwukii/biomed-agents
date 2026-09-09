@@ -25,6 +25,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
+      # GitHub does not pass secrets to pull_request runs from forks, so this is
+      # empty for outside contributors. That is fine: the tests needing a key are
+      # marked `requires_openai` (tests/conftest.py) and skip when it is unset,
+      # so a fork PR gets a green run instead of a spurious failure.
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     strategy:
       matrix:
