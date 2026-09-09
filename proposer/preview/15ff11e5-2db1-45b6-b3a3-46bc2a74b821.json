@@ -1,0 +1,150 @@
+{
+  "capsule_id": "15ff11e5-2db1-45b6-b3a3-46bc2a74b821",
+  "mode": "preview",
+  "model": "claude-sonnet-4-6",
+  "status": "ok",
+  "error": null,
+  "n_input_files": 2,
+  "warnings": [],
+  "turns": 0,
+  "max_turns": null,
+  "expert_hypothesis": "In colorectal cancer (CRC) cells, combination treatment with CBD and a chemotherapeutic (e.g., cisplatin) enriches gene sets related to cell-cycle regulation and apoptosis (including p53-related pathways).",
+  "seed_listing": "",
+  "explore_steps": [],
+  "generation_prompt": "You are a computational biologist proposing testable scientific hypotheses for a benchmark.\n\nYou are given a description of the raw data files available in ONE \"capsule\" \u2014 the input data from a\nsingle biology study (e.g. RNA-seq counts, sample metadata, variant calls, single-cell data, sequences).\nThe original analysis, paper, and conclusions are hidden from you.\n\nYour task: from the data alone, infer the experimental design (what was measured; which groups,\nconditions, genotypes, or covariates exist; what modality), then propose 3 DISTINCT scientific\nhypotheses that could be tested using ONLY the files in this capsule.\n\nWhat makes a good hypothesis (match this style exactly):\n- A single declarative sentence stating a SPECIFIC, FALSIFIABLE claim \u2014 a real scientific bet that\n  could turn out either true or false once the analysis is run.\n- Names concrete biological entities that plausibly appear in the data: specific genes, mutations,\n  strains/genotypes, cell types, tissues, conditions/media, or named biological processes/pathways.\n- States a DIRECTION or RELATIONSHIP, e.g. \"X drives/increases/is required for Y\", \"the effect of X\n  on Y is environment-dependent\", or \"X is NOT explained by Y\". Negative / null-style claims are\n  welcome where the data supports testing them.\n- Is testable by a standard bioinformatics analysis (differential expression, enrichment,\n  association/regression, group comparison, etc.) on the PROVIDED data \u2014 no external datasets needed.\n\nAvoid:\n- Vague or guaranteed-true statements (\"there are differences between groups\"), pure method\n  descriptions, or meta commentary (\"this dataset could be used to ...\").\n- Hedging words (\"may\", \"might\", \"could suggest\").\n- Referencing file names or saying \"the data shows\".\n- Hypotheses that require data not present in this capsule.\n\nExample hypotheses from OTHER capsules, for style calibration only (do NOT reuse or adapt them):\n- \"Truncating ASXL1 mutations drive specific blood gene expression changes that reflect altered hematological and immune processes, including T cell and neutrophil activation.\"\n- \"Quorum sensing-mediated division of labor is environment-dependent: \u0394rhlI and \u0394lasI mutants exhibit altered downstream gene expression that varies across different media.\"\n- \"The elevated burden of somatic variants in CHIP genes observed in Bloom syndrome probands and carriers is not explained by an increased burden of germline variants in CHIP genes.\"\n\nReturn ONLY JSON of the form {\"hypotheses\": [\"...\", \"...\"]} with exactly 3 items, ordered from\nmost to least confidently testable given the available data.\n\n=== CAPSULE DATA FILES ===\n- counts_raw_unfiltered.csv  [5.8MB]\n\"\",\"1_1\",\"1_2\",\"1_3\",\"2_1\",\"2_2\",\"2_3\",\"3_1\",\"3_2\",\"3_3\",\"4_1\",\"4_2\",\"4_3\",\"5_1\",\"5_2\",\"5_3\",\"6_1\",\"6_2\",\"6_3\",\"7_1\",\"7_2\",\"7_3\",\"8_1\",\"8_2\",\"8_3\",\"9_1\",\"9_2\",\"9_3\",\"10_1\",\"10_2\",\"10_3\"\n\"ENSG00000223972\",6,0,0,0,1,0,0,0,0,0,2,0,2,1,1,1,0,0,3,0,0,0,0,3,0,0,2,1,1,0\n\"ENSG00000227232\",569,700,781,857,713,414,140,492,709,677,740,358,490,466,295,772,821,189,905,570,553,482,281,741,344,213,628,290,388,439\n\"ENSG00000243485\",0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,2,0,0,0\n\"ENSG00000237613\",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n\"ENSG00000268020\",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n\"ENSG00000240361\",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n\"ENSG00000186092\",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n- sample_layout.csv  [2.8KB]\nfileNames,SampleID,Group\nNS.2012.004.UDP0057_i7---UDP0057_i5.1-1_R1.trim.sorted.counts.counts,1-1,Untreated\nNS.2012.004.UDP0058_i7---UDP0058_i5.1-2_R1.trim.sorted.counts.counts,1-2,Untreated\nNS.2012.004.UDP0059_i7---UDP0059_i5.1-3_R1.trim.sorted.counts.counts,1-3,Untreated\nNS.2012.004.UDP0060_i7---UDP0060_i5.2-1_R1.trim.sorted.counts.counts,2-1,Serum_starvation\nNS.2012.004.UDP0061_i7---UDP0061_i5.2-2_R1.trim.sorted.counts.counts,2-2,Serum_starvation\nNS.2012.004.UDP0062_i7---UDP0062_i5.2-3_R1.trim.sorted.counts.counts,2-3,Serum_starvation\nNS.2012.004.UDP0063_i7---UDP0063_i5.3-1_R1.trim.sorted.counts.counts,3-1,DMSO\n=== END CAPSULE DATA FILES ===\n",
+  "hypotheses": [
+    "Serum starvation (group 2) suppresses expression of cell cycle progression genes including CCNB1, CDK1, and MKI67 relative to untreated cells (group 1), reflecting transcriptional hallmarks of G0/G1 arrest.",
+    "The DMSO vehicle control (group 3) is transcriptionally indistinguishable from the untreated condition (group 1) across the majority of expressed genes, confirming that DMSO solvent does not itself induce a biologically meaningful stress or differentiation response at the concentration used.",
+    "Drug-treated groups (4\u201310) each produce distinct differentially expressed gene sets relative to the DMSO control, such that no two drug treatments share the same enriched biological pathways, indicating mechanistically non-redundant modes of action among the compounds tested."
+  ],
+  "hypotheses_reasoning": "Let me analyze the data files to understand the experimental design.\n\nFrom sample_layout.csv, I can see:\n- Groups: Untreated, Serum_starvation, DMSO, and likely more groups (up to group 10 based on counts file)\n- 3 replicates per group\n- 30 samples total (groups 1-10, 3 replicates each)\n- RNA-seq count data (Ensembl gene IDs)\n\nThe groups visible are:\n- Group 1: Untreated\n- Group 2: Serum_starvation\n- Group 3: DMSO (vehicle control)\n- Groups 4-10: Likely drug treatments\n\nThis looks like a pharmacological study where cells are treated with various drugs dissolved in DMSO, with serum starvation as a synchronization condition and untreated as the baseline control. The presence of a DMSO vehicle control suggests the researchers are accounting for solvent effects when evaluating the drug treatments.\n\nI'd expect serum starvation to trigger a distinct transcriptional signature\u2014downregulating cell cycle and proliferation genes while upregulating stress response and autophagy pathways. The drug-treated groups should then show differential expression patterns compared to the DMSO control, potentially revealing how these compounds modulate gene expression in both normal and starved conditions. not induce a stress response comparable to serum withdrawal. Drug-treated samples show distinct differential expression patterns relative to the DMSO control, with each treatment affecting different gene sets that reflect their unique mechanisms of action. These hypotheses are now specific and testable.",
+  "rubric_mode": "agent",
+  "rubrics": [
+    {
+      "hypothesis": "Serum starvation (group 2) suppresses expression of cell cycle progression genes including CCNB1, CDK1, and MKI67 relative to untreated cells (group 1), reflecting transcriptional hallmarks of G0/G1 arrest.",
+      "criteria": [
+        {
+          "points": 1,
+          "criterion": "Loads the raw count matrix and sample metadata; correctly subsets to only the Untreated (group 1, samples 1_1/1_2/1_3) and Serum_starvation (group 2, samples 2_1/2_2/2_3) columns, discarding the other eight groups from the analysis."
+        },
+        {
+          "points": 1,
+          "criterion": "Filters out lowly-expressed genes (e.g., retaining genes with a minimum count threshold such as \u226510 total counts or \u22651 CPM in at least 2\u20133 samples) to reduce noise before differential expression testing."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies a library-size normalization method appropriate for RNA-seq count data (e.g., DESeq2 size-factor normalization, TMM, or CPM) to account for the substantial differences in sequencing depth across samples (ranging ~10M to ~50M reads)."
+        },
+        {
+          "points": 1,
+          "criterion": "Runs a formal differential expression analysis (e.g., DESeq2, edgeR, or limma-voom) comparing Serum_starvation vs. Untreated, producing log2 fold-change estimates and p-values for each gene."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies multiple-testing correction (BH/FDR or equivalent) and uses a significance threshold (e.g., padj < 0.05) to call differentially expressed genes."
+        },
+        {
+          "points": 1,
+          "criterion": "Maps the Ensembl gene IDs in the count matrix to HGNC gene symbols (e.g., via biomaRt, mygene, or a reference table) and explicitly reports the log2 fold-change, p-value, and adjusted p-value for CCNB1, CDK1, and MKI67 in the Serum_starvation vs. Untreated comparison."
+        },
+        {
+          "points": 3,
+          "criterion": "Overall analysis is technically sound (correct group assignment, appropriate normalization, valid DE method, multiple-testing correction applied) and the accept/reject conclusion is explicitly stated and correctly supported by the agent's own reported results for CCNB1, CDK1, and MKI67 (e.g., accepting the hypothesis if all three genes show statistically significant down-regulation in Serum_starvation, or rejecting/partially rejecting it if results do not consistently support suppression)."
+        }
+      ],
+      "rubric": "* 1 point: Loads the raw count matrix and sample metadata; correctly subsets to only the Untreated (group 1, samples 1_1/1_2/1_3) and Serum_starvation (group 2, samples 2_1/2_2/2_3) columns, discarding the other eight groups from the analysis.\n* 1 point: Filters out lowly-expressed genes (e.g., retaining genes with a minimum count threshold such as \u226510 total counts or \u22651 CPM in at least 2\u20133 samples) to reduce noise before differential expression testing.\n* 1 point: Applies a library-size normalization method appropriate for RNA-seq count data (e.g., DESeq2 size-factor normalization, TMM, or CPM) to account for the substantial differences in sequencing depth across samples (ranging ~10M to ~50M reads).\n* 1 point: Runs a formal differential expression analysis (e.g., DESeq2, edgeR, or limma-voom) comparing Serum_starvation vs. Untreated, producing log2 fold-change estimates and p-values for each gene.\n* 1 point: Applies multiple-testing correction (BH/FDR or equivalent) and uses a significance threshold (e.g., padj < 0.05) to call differentially expressed genes.\n* 1 point: Maps the Ensembl gene IDs in the count matrix to HGNC gene symbols (e.g., via biomaRt, mygene, or a reference table) and explicitly reports the log2 fold-change, p-value, and adjusted p-value for CCNB1, CDK1, and MKI67 in the Serum_starvation vs. Untreated comparison.\n* 3 points: Overall analysis is technically sound (correct group assignment, appropriate normalization, valid DE method, multiple-testing correction applied) and the accept/reject conclusion is explicitly stated and correctly supported by the agent's own reported results for CCNB1, CDK1, and MKI67 (e.g., accepting the hypothesis if all three genes show statistically significant down-regulation in Serum_starvation, or rejecting/partially rejecting it if results do not consistently support suppression).",
+      "max_points": 9,
+      "reasoning": "Let me design a rubric for testing the hypothesis that serum starvation (group 2) suppresses expression of cell cycle progression genes (CCNB1, CDK1, MKI67) relative to untreated cells (group 1).\n\nThe key steps are:\n1. Load data and correctly identify group 1 (Untreated: samples 1_1, 1_2, 1_3) and group 2 (Serum_starvation: samples 2_1, 2_2, 2_3)\n2. Filter/preprocess the count data (low-count filtering)\n3. Normalize counts (e.g., DESeq2 normalization or CPM/TPM)\n4. Run differential expression analysis comparing serum-starved cells to untreated controls, then apply multiple testing correction and extract results for the three target genes\n5. Since the count matrix uses Ensembl IDs, I'll need to map CCNB1, CDK1, and MKI67 to their corresponding ENSG identifiers (ENSG00000134057, ENSG00000170312, and ENSG00000148773 respectively) to pull the relevant expression data.\n\nNow I'm structuring the evaluation rubric with specific procedural steps covering data loading and subsetting, low-count filtering, normalization, differential expression testing, ID mapping, and final reporting of results for these three genes."
+    },
+    {
+      "hypothesis": "The DMSO vehicle control (group 3) is transcriptionally indistinguishable from the untreated condition (group 1) across the majority of expressed genes, confirming that DMSO solvent does not itself induce a biologically meaningful stress or differentiation response at the concentration used.",
+      "criteria": [
+        {
+          "points": 1,
+          "criterion": "Loads the raw count matrix and sample metadata; correctly identifies and subsets to exactly the 6 samples belonging to the Untreated group (columns 1_1, 1_2, 1_3) and the DMSO group (columns 3_1, 3_2, 3_3), verifying group assignments match the metadata before proceeding."
+        },
+        {
+          "points": 1,
+          "criterion": "Filters lowly expressed genes prior to differential expression analysis, retaining only genes with a minimum count (e.g., at least 10 total counts or at least 1 CPM in a minimum number of samples), and reports how many genes pass filtering."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies library-size normalization appropriate for RNA-seq count data (e.g., DESeq2 size-factor estimation, TMM via edgeR, or equivalent) to account for the large variation in per-sample sequencing depth evident in these 6 samples before statistical testing."
+        },
+        {
+          "points": 1,
+          "criterion": "Runs a formal differential expression analysis (e.g., DESeq2 Wald test, edgeR exact/glm test, or equivalent negative-binomial framework) comparing DMSO vs. Untreated as the sole contrast, and reports a full table of results (log2 fold change and p-value) for all filtered genes."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies multiple-testing correction (Benjamini-Hochberg FDR or equivalent) to the DE results and counts the number of genes reaching significance at an adjusted p-value threshold of \u2264 0.05 (and optionally a |log2FC| threshold such as \u2265 1), explicitly reporting this count and the corresponding fraction of all expressed genes tested."
+        },
+        {
+          "points": 1,
+          "criterion": "Produces at least one supporting visualization (e.g., volcano plot, MA plot, or PCA/MDS of the 6 samples) that visually illustrates the transcriptional relationship between the DMSO and Untreated groups, consistent with the reported DE results."
+        },
+        {
+          "points": 4,
+          "criterion": "Overall analysis is methodologically sound (correct group subsetting, adequate normalization, valid statistical test, proper FDR correction) and the stated accept/reject conclusion about DMSO transcriptional equivalence to untreated is correctly and explicitly justified by the agent's own reported number of significant DEGs and their proportion among expressed genes, with no logical inconsistency between the results and the conclusion."
+        }
+      ],
+      "rubric": "* 1 point: Loads the raw count matrix and sample metadata; correctly identifies and subsets to exactly the 6 samples belonging to the Untreated group (columns 1_1, 1_2, 1_3) and the DMSO group (columns 3_1, 3_2, 3_3), verifying group assignments match the metadata before proceeding.\n* 1 point: Filters lowly expressed genes prior to differential expression analysis, retaining only genes with a minimum count (e.g., at least 10 total counts or at least 1 CPM in a minimum number of samples), and reports how many genes pass filtering.\n* 1 point: Applies library-size normalization appropriate for RNA-seq count data (e.g., DESeq2 size-factor estimation, TMM via edgeR, or equivalent) to account for the large variation in per-sample sequencing depth evident in these 6 samples before statistical testing.\n* 1 point: Runs a formal differential expression analysis (e.g., DESeq2 Wald test, edgeR exact/glm test, or equivalent negative-binomial framework) comparing DMSO vs. Untreated as the sole contrast, and reports a full table of results (log2 fold change and p-value) for all filtered genes.\n* 1 point: Applies multiple-testing correction (Benjamini-Hochberg FDR or equivalent) to the DE results and counts the number of genes reaching significance at an adjusted p-value threshold of \u2264 0.05 (and optionally a |log2FC| threshold such as \u2265 1), explicitly reporting this count and the corresponding fraction of all expressed genes tested.\n* 1 point: Produces at least one supporting visualization (e.g., volcano plot, MA plot, or PCA/MDS of the 6 samples) that visually illustrates the transcriptional relationship between the DMSO and Untreated groups, consistent with the reported DE results.\n* 4 points: Overall analysis is methodologically sound (correct group subsetting, adequate normalization, valid statistical test, proper FDR correction) and the stated accept/reject conclusion about DMSO transcriptional equivalence to untreated is correctly and explicitly justified by the agent's own reported number of significant DEGs and their proportion among expressed genes, with no logical inconsistency between the results and the conclusion.",
+      "max_points": 10,
+      "reasoning": "Let me design a rubric for testing the hypothesis that DMSO (group 3) is transcriptionally indistinguishable from untreated (group 1).\n\nThe analysis pipeline should:\n1. Load data and correctly identify group 1 (Untreated: samples 1_1, 1_2, 1_3) and group 3 (DMSO: samples 3_1, 3_2, 3_3)\n2. Filter lowly expressed genes (keep genes with sufficient counts)\n3. Normalize the data using DESeq2 size factor normalization or equivalent approach\n4. Run differential expression analysis between DMSO and Untreated samples\n5. Apply multiple testing correction with appropriate significance thresholds\n6. Report the number of differentially expressed genes and draw a conclusion about whether DMSO is truly indistinguishable from untreated conditions\n\nFor the rubric, I need to establish clear criteria: correctly loading and subsetting the data to the two groups, filtering lowly expressed genes, normalizing with attention to variable library sizes, running the DE analysis, applying FDR correction at padj < 0.05, and then assessing what proportion of expressed genes show significant differential expression to evaluate the hypothesis that DMSO has minimal effect."
+    },
+    {
+      "hypothesis": "Drug-treated groups (4\u201310) each produce distinct differentially expressed gene sets relative to the DMSO control, such that no two drug treatments share the same enriched biological pathways, indicating mechanistically non-redundant modes of action among the compounds tested.",
+      "criteria": [
+        {
+          "points": 1,
+          "criterion": "Loads the raw count matrix and sample layout; correctly maps sample IDs to groups; identifies group 3 (DMSO) as the reference control and groups 4\u201310 (DMSO_Serum_starvation, Cisplatin_IC50, Cisplatin_IC50_Serum_starvation_16h, CBD_IC50, CBD_IC50_Serum_starvation_16h, Cisplatin_IC50_CBD_IC50, Cisplatin_IC50_CBD_IC50_Serum_starvation_16h) as the seven drug-treated groups to be compared."
+        },
+        {
+          "points": 1,
+          "criterion": "Filters lowly expressed genes before differential expression analysis (e.g., removes genes with fewer than a minimum count threshold \u2014 such as fewer than 10 counts in at least 3 samples or an equivalent criterion) to reduce noise and multiple-testing burden."
+        },
+        {
+          "points": 1,
+          "criterion": "Runs a count-based differential expression analysis (e.g., DESeq2 via rpy2, PyDESeq2, or edgeR) for each of the seven drug-treated groups versus the DMSO control separately, producing log-fold changes and p-values for each comparison."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies multiple-testing correction (BH/FDR) within each comparison and uses a significance threshold (adjusted p-value < 0.05 and/or |log2FC| \u2265 1) to define a DEG set for each of the seven drug-treated groups versus DMSO."
+        },
+        {
+          "points": 1,
+          "criterion": "Performs gene set / pathway enrichment analysis (e.g., GO biological process, KEGG, or Reactome via clusterProfiler, gseapy, Enrichr, or equivalent) on the DEG set from each of the seven drug-treated groups, applying FDR correction and filtering to significant enriched terms (adjusted p-value < 0.05)."
+        },
+        {
+          "points": 1,
+          "criterion": "Systematically compares the enriched pathway sets across all seven drug-treated groups (e.g., via a pairwise overlap analysis, UpSet plot, Jaccard similarity, or explicit intersection table) and reports whether any two groups share one or more significantly enriched biological pathways."
+        },
+        {
+          "points": 1,
+          "criterion": "Clearly reports, for each drug-treated group, the number of DEGs and the number of significantly enriched pathways relative to DMSO, and explicitly states which (if any) pathway terms are shared between two or more groups."
+        },
+        {
+          "points": 4,
+          "criterion": "Overall analysis is methodologically sound (appropriate DE method on raw counts, correct control group, per-comparison multiple-testing correction, enrichment analysis with correction, and systematic pathway-overlap assessment), and the accept/reject conclusion regarding mechanistic non-redundancy is directly and correctly supported by the agent's own enrichment overlap results."
+        }
+      ],
+      "rubric": "* 1 point: Loads the raw count matrix and sample layout; correctly maps sample IDs to groups; identifies group 3 (DMSO) as the reference control and groups 4\u201310 (DMSO_Serum_starvation, Cisplatin_IC50, Cisplatin_IC50_Serum_starvation_16h, CBD_IC50, CBD_IC50_Serum_starvation_16h, Cisplatin_IC50_CBD_IC50, Cisplatin_IC50_CBD_IC50_Serum_starvation_16h) as the seven drug-treated groups to be compared.\n* 1 point: Filters lowly expressed genes before differential expression analysis (e.g., removes genes with fewer than a minimum count threshold \u2014 such as fewer than 10 counts in at least 3 samples or an equivalent criterion) to reduce noise and multiple-testing burden.\n* 1 point: Runs a count-based differential expression analysis (e.g., DESeq2 via rpy2, PyDESeq2, or edgeR) for each of the seven drug-treated groups versus the DMSO control separately, producing log-fold changes and p-values for each comparison.\n* 1 point: Applies multiple-testing correction (BH/FDR) within each comparison and uses a significance threshold (adjusted p-value < 0.05 and/or |log2FC| \u2265 1) to define a DEG set for each of the seven drug-treated groups versus DMSO.\n* 1 point: Performs gene set / pathway enrichment analysis (e.g., GO biological process, KEGG, or Reactome via clusterProfiler, gseapy, Enrichr, or equivalent) on the DEG set from each of the seven drug-treated groups, applying FDR correction and filtering to significant enriched terms (adjusted p-value < 0.05).\n* 1 point: Systematically compares the enriched pathway sets across all seven drug-treated groups (e.g., via a pairwise overlap analysis, UpSet plot, Jaccard similarity, or explicit intersection table) and reports whether any two groups share one or more significantly enriched biological pathways.\n* 1 point: Clearly reports, for each drug-treated group, the number of DEGs and the number of significantly enriched pathways relative to DMSO, and explicitly states which (if any) pathway terms are shared between two or more groups.\n* 4 points: Overall analysis is methodologically sound (appropriate DE method on raw counts, correct control group, per-comparison multiple-testing correction, enrichment analysis with correction, and systematic pathway-overlap assessment), and the accept/reject conclusion regarding mechanistic non-redundancy is directly and correctly supported by the agent's own enrichment overlap results.",
+      "max_points": 11,
+      "reasoning": "Let me analyze the hypothesis and data to create an appropriate rubric.\n\nThe hypothesis states: Drug-treated groups (4\u201310) each produce distinct differentially expressed gene sets relative to the DMSO control, such that no two drug treatments share the same enriched biological pathways, indicating mechanistically non-redundant modes of action among the compounds tested.\n\nFrom the data exploration:\n- Groups 1-10, with group 3 being DMSO (control)\n- Groups 4-10 are drug-treated (7 groups): DMSO_Serum_starvation, Cisplatin_IC50, Cisplatin_IC50_Serum_starvation_16h, CBD_IC50, CBD_IC50_Serum_starvation_16h, Cisplatin_IC50_CBD_IC50, Cisplatin_IC50_CBD_IC50_Serum_starvation_16h\n- Working with 63,677 genes across 30 samples (3 replicates per group)\n\nI need to set up a pipeline that filters low-abundance genes, runs differential expression analysis comparing each of the 7 drug-treated groups against the DMSO control using DESeq2, applies FDR correction to identify significant DEGs, then performs pathway and GO enrichment on each DEG set to evaluate whether the drug treatments produce mechanistically distinct biological signatures."
+    }
+  ],
+  "rubric_explore_steps": [
+    {
+      "step": 1,
+      "code": "import pandas as pd\n\n# Load sample layout\nlayout = pd.read_csv('sample_layout.csv')\nprint(\"Sample layout shape:\", layout.shape)\nprint(\"\\nGroup value counts:\")\nprint(layout['Group'].value_counts())\nprint(\"\\nAll groups (ordered):\")\nprint(layout[['SampleID','Group']].to_string())",
+      "output": "[stdout]\nSample layout shape: (30, 3)\n\nGroup value counts:\nGroup\nUntreated                                       3\nSerum_starvation                                3\nDMSO                                            3\nDMSO_Serum_starvation                           3\nCisplatin_IC50                                  3\nCisplatin_IC50_Serum_starvation_16h             3\nCBD_IC50                                        3\nCBD_IC50_Serum_starvation_16h                   3\nCisplatin_IC50_CBD_IC50                         3\nCisplatin_IC50_CBD_IC50_Serum_starvation_16h    3\nName: count, dtype: int64\n\nAll groups (ordered):\n   SampleID                                         Group\n0       1-1                                     Untreated\n1       1-2                                     Untreated\n2       1-3                                     Untreated\n3       2-1                              Serum_starvation\n4       2-2                              Serum_starvation\n5       2-3                              Serum_starvation\n6       3-1                                          DMSO\n7       3-2                                          DMSO\n8       3-3                                          DMSO\n9       4-1                         DMSO_Serum_starvation\n10      4-2                         DMSO_Serum_starvation\n11      4-3                         DMSO_Serum_starvation\n12      5-1                                Cisplatin_IC50\n13      5-2                                Cisplatin_IC50\n14      5-3     ",
+      "reasoning": "Let me explore the data files to understand the experiment better."
+    },
+    {
+      "step": 2,
+      "code": "import pandas as pd\n\n# Load counts matrix\ncounts = pd.read_csv('counts_raw_unfiltered.csv', index_col=0)\nprint(\"Counts matrix shape (genes x samples):\", counts.shape)\nprint(\"\\nColumn names:\", counts.columns.tolist())\nprint(\"\\nFirst few gene IDs:\", counts.index[:5].tolist())\nprint(\"\\nTotal counts per sample (library size):\")\nprint(counts.sum().to_string())",
+      "output": "[stdout]\nCounts matrix shape (genes x samples): (63677, 30)\n\nColumn names: ['1_1', '1_2', '1_3', '2_1', '2_2', '2_3', '3_1', '3_2', '3_3', '4_1', '4_2', '4_3', '5_1', '5_2', '5_3', '6_1', '6_2', '6_3', '7_1', '7_2', '7_3', '8_1', '8_2', '8_3', '9_1', '9_2', '9_3', '10_1', '10_2', '10_3']\n\nFirst few gene IDs: ['ENSG00000223972', 'ENSG00000227232', 'ENSG00000243485', 'ENSG00000237613', 'ENSG00000268020']\n\nTotal counts per sample (library size):\n1_1     28730714\n1_2     43004294\n1_3     43389864\n2_1     50221203\n2_2     41250509\n2_3     26239504\n3_1      8200746\n3_2     29317321\n3_3     39547354\n4_1     47937898\n4_2     46184226\n4_3     22479910\n5_1     27259152\n5_2     26907794\n5_3     17100021\n6_1     46354168\n6_2     46535814\n6_3     15000358\n7_1     51875777\n7_2     30477473\n7_3     28119511\n8_1     26325954\n8_2     15533151\n8_3     42975001\n9_1     18549847\n9_2     10540022\n9_3     34834875\n10_1    15234062\n10_2    22300456\n10_3    30978567\n",
+      "reasoning": "Let me check the counts matrix dimensions and some basic statistics."
+    }
+  ]
+}

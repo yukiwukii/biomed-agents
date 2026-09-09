@@ -1,0 +1,958 @@
+# rl/configs/grpo_hypotest_27b.yaml
+# =============================================================================
+# Qwen/Qwen3.6-27B + LoRA, 1 task x 4 trajectories. The only training config.
+#
+# >>> THE FILENAME IS A LIE AS OF 2026-08-12. This is the 27B config. <<<
+# Kept as-is deliberately: the name is wired into 01_grpo.sh, workloads.sh,
+# save_final_model.sh and the ckpt/log directory names, and renaming it mid-
+# migration would break the resume path for no functional gain. Rename in one
+# deliberate pass, or not at all.
+#
+# CHANGED 2026-08-12, all in one migration -- read §"what moved" before debugging
+# anything: model 3.5-9B -> 3.6-27B (bf16, NOT -FP8), LoRA r64/a128 -> r32/a32,
+# 5 GPUs non-colocated -> 8 GPUs COLOCATED (trainer dp=2, vLLM tp=4 x2 replicas),
+# prefix caching OFF -> ON, custom chat template -> the model's own
+# preserve_thinking flag. Old checkpoints are NOT loadable; see checkpointing.
+#
+# -----------------------------------------------------------------------------
+# ARCHITECTURE -- what makes this stack awkward
+# -----------------------------------------------------------------------------
+#   * hybrid linear attention -- full_attention_interval: 4, so only 8 of the
+#     32 layers are full attention. This is where the vLLM sharp edges live.
+#   * multimodal wrapper with a vision tower (model.visual, 333 of 775 tensors),
+#     so the decoder lives at model.language_model.layers.*, NOT model.layers.*.
+#     This is why custom_parallel_plan below is mandatory.
+#   * multi-token-prediction head (mtp)
+#   * num_key_value_heads: 4, head_dim: 256, hidden_size: 4096
+#   * dense MLP. 19.3 GB bf16.
+#   * vocab 248,320 -- large, and it is the vocab (not the parameter count) that
+#     sizes every tensor that has ever OOM'd this run. See max_total_sequence_
+#     length below before changing anything for memory reasons.
+#
+# -----------------------------------------------------------------------------
+# GPUs: 5 = 1 vLLM + 4 trainer (non-colocated)
+# -----------------------------------------------------------------------------
+# Weights are only 8.30 GB/GPU at TP=4 (measured by rl/scripts/check_tp_plan.py
+# against the real checkpoint; 19.31 GB total, 76% sharded). Activations and the
+# logit/gradient tensors, not weights, are what run you out of memory here.
+#
+# `cluster.gpus_per_node: 5` at the bottom MUST match the GPU count the workload
+# is submitted with (NINE_GPUS in rl/runai/workloads.sh). Submit fewer and the
+# job wedges in Pending with no useful error.
+# =============================================================================
+
+grpo:
+  # 2026-08-12: 1 -> 2. With num_prompts_per_step 3 over train.jsonl's 46
+  # problems, steps/epoch = 46/3 = 15 (15 full steps, remainder 1), so 2 epochs
+  # is ~30 steps. max_num_steps below must stay ABOVE that or it, not the epoch
+  # count, ends the run.
+  max_num_epochs: 2
+  # 2026-08-11: was 2 x 2. Same 4 episodes per step, but all four are now
+  # rollouts of the SAME prompt -- which is what GRPO's advantage is computed
+  # over. At group size 2, run 12 measured one of four groups producing EXACTLY
+  # ZERO advantage because both rollouts tied at 0.0; that prompt's gradient was
+  # silently discarded. With rewards clustered in 0.0-0.2 ties are common, and
+  # group size 4 makes an all-tie far less likely while giving the leave-one-out
+  # baseline three samples instead of one.
+  #
+  # Side effect, beneficial: steps/epoch = len(dataset) / num_prompts_per_step,
+  # so train.jsonl's 4 problems now give 4 steps per epoch instead of 2.
+  #
+  # Cost: one task per step, so per-step gradients are less diverse across tasks.
+  # Acceptable while the binding problem is signal quality, not task coverage.
+  #
+  # 2026-08-12: 1 -> 3 tasks per step. This BUYS BACK the diversity cost noted
+  # directly above, without touching group size: still 4 rollouts of each prompt,
+  # so the leave-one-out baseline is unchanged and the anti-tie property is kept.
+  #   global batch = 3 x 4 = 12 episodes/step   (was 4)
+  #   dp=2 -> 6 episodes per data-parallel group, micro batch 1 -> 6 grad-accum
+  #   steps/epoch = 46/3 = 15, x2 epochs = ~30 steps, ~360 episodes total
+  # 12 divides dp=2 cleanly. Keep num_prompts_per_step x num_generations_per_
+  # prompt EVEN or the global batch will not split across dp=2.
+  #
+  # COST IS WALL TIME, and it is not small: 360 episodes against exp_007's 48.
+  # (2026-08-12: briefly 1 for the exp_002 memory probe, restored to 3. The
+  # probe reached policy.train() in 25 min instead of ~50 and confirmed
+  # cpu_offload fixes the exp_001 OOM -- see dtensor_cfg.cpu_offload.)
+  num_prompts_per_step: 3       # 3 tasks
+  num_generations_per_prompt: 4 # 4 trajectories of EACH -> group size 4
+  max_rollout_turns: 1          # the Gym agent owns the multi-turn loop
+  # 2026-08-12: 12 (preflight) -> 50. Deliberately ABOVE the ~30 steps that
+  # 2 epochs x 15 steps/epoch implies, so `max_num_epochs: 2` is what ends the
+  # run -- the DATA running out, not a number being too small. The loop is
+  #   while current_epoch < max_num_epochs and total_steps < max_num_steps
+  # If the run stops at exactly 50, the epoch accounting is wrong; investigate
+  # rather than raising this.
+  # 2026-08-14: RUN INDEFINITELY (no time cap -- checkpoint_must_save_by is null).
+  # The run ends when the DATA runs out at max_num_epochs. 250 train /
+  # num_prompts_per_step 3 = 83 steps/epoch; x2 epochs = 166 steps. This cap is
+  # set ABOVE 166 so max_num_epochs is what ends the run, not this number.
+  # (NB: "30 steps" in the request is AGENT_MAX_STEPS = agent turns/episode, on
+  # the env pod, NOT this training-step cap.)
+  max_num_steps: 200
+  normalize_rewards: true
+  use_leave_one_out_baseline: true
+  # 2026-08-12: validation TURNED ON against eval.jsonl (see data.validation).
+  # val_at_start gives the step-0 baseline the previous runs never had -- without
+  # it the first eval lands at step 10 and there is nothing to compare it to.
+  # At ~30 steps, period 10 yields evals at 0, 10, 20, 30 = 4 points.
+  #
+  # COST: each pass is 5 problems x full agent rollouts. exp_007 measured
+  # total_validation_time at 852 s; expect more here (27B, and 5 problems rather
+  # than tiny's 4), so budget roughly 20-30 min per eval, ~1.5 h over the run.
+  # 2026-08-14: eval every 5 TRAINING steps on 5 held-out HYPOTEST tasks
+  # (data.validation -> eval_hypotest5.jsonl). val_at_start gives the step-0
+  # baseline the learning curve needs.
+  #
+  # NOTE: max_val_samples is UNSUPPORTED on the NeMo Gym path -- it hard-errors
+  # (run_grpo_nemo_gym.py:173). It MUST stay null; eval size is controlled by the
+  # SIZE of the validation jsonl (here 5), NOT this field.
+  val_period: 5
+  val_at_start: true
+  val_at_end: true
+  overlong_filtering: false
+  max_val_samples: null
+  val_batch_size: null
+  seed: 42
+  use_dynamic_sampling: false
+  dynamic_sampling_max_gen_batches: 10
+  batch_multiplier: 1
+  reward_shaping:
+    enabled: false
+    overlong_buffer_length: 128
+    overlong_buffer_penalty: 1
+    max_response_length: ${policy.max_total_sequence_length}
+  adv_estimator:
+    name: "grpo"
+    normalize_rewards: ${grpo.normalize_rewards}
+    use_leave_one_out_baseline: ${grpo.use_leave_one_out_baseline}
+    minus_baseline: true
+  reward_scaling:
+    enabled: false
+    source_min: 0.0
+    source_max: 1.0
+    target_min: 0.0
+    target_max: 1.0
+  skip_reference_policy_logprobs_calculation: true
+  seq_logprob_error_threshold: null
+  # 2026-08-12: ASYNC TEST (4 vLLM + 4 trainer, disaggregated). Verified against
+  # the NeMo RL source at bbh-third-party/RL/nemo_rl/algorithms/grpo.py:
+  #   * async is selected by enabled:true (run_grpo_nemo_gym.py:235), which
+  #     dispatches to async_grpo_train + a background AsyncTrajectoryCollector
+  #     that generates CONTINUOUSLY into a ReplayBuffer while the trainer pulls.
+  #     This is the overlap: generation no longer blocks on the slowest episode.
+  #   * HARD ASSERT: loss_fn.use_importance_sampling_correction MUST be true
+  #     (grpo.py:2403) -- trajectories are now up to max_trajectory_age_steps
+  #     stale, so the off-policy correction is required for convergence. Set below.
+  #   * age > 1 needs in_flight_weight_updates:true or it warns "no benefit"
+  #     (grpo.py:2411). Keeping age=1 for this first test: the background
+  #     collector already overlaps generation with training at age=1; in-flight
+  #     updates + KV recompute on a hybrid GDN model is a separate, riskier step.
+  #   * buffer_size = num_prompts_per_step * age * 2 = 3*1*2 = 6 (grpo.py:2493).
+  #   * NOT supported by async, all already off: use_dynamic_sampling,
+  #     reward_scaling.enabled, reward_shaping.enabled, use_multiple_dataloader
+  #     (run_grpo_nemo_gym.py:237-262).
+  async_grpo:
+    # 2026-08-13: true -> false. Reverted out of the async-test state (handoff
+    # §0.4) for the real colocated-sync run. loss_fn.use_importance_sampling_
+    # correction is left true -- harmless on-policy (ratio ~1).
+    enabled: false
+    max_trajectory_age_steps: 1
+    in_flight_weight_updates: false
+    recompute_kv_cache_after_weight_updates: false
+
+loss_fn:
+  reference_policy_kl_penalty: 0
+  reference_policy_kl_type: "k3"
+  kl_input_clamp_value: 20.0
+  kl_output_clamp_value: 10.0
+  ratio_clip_min: 0.2
+  ratio_clip_max: 0.2
+  ratio_clip_c: null
+  use_on_policy_kl_approximation: false
+  truncated_importance_sampling_ratio: null
+  # 2026-08-12: false -> true. REQUIRED by async GRPO (hard assert at
+  # grpo.py:2403): async trajectories are off-policy by up to
+  # max_trajectory_age_steps, so the importance ratio must correct for it or
+  # convergence degrades. Harmless if async is later disabled (on-policy ratio
+  # is ~1). Pairs with truncated_importance_sampling_ratio below if ratios spike.
+  use_importance_sampling_correction: true
+  token_level_loss: true
+
+checkpointing:
+  # 2026-08-11: enabled for long runs. Preemption is REAL on this cluster -- run 6
+  # was evicted 14 minutes in and lost entirely. A multi-hour run without
+  # checkpoints is a multi-hour run you can lose to another tenant.
+  enabled: true
+
+  # MUST resolve onto the PVC. This was "results/grpo-hypotest-9b", a RELATIVE
+  # path, and 01_grpo.sh cds to /opt/nemo-rl before exec -- so checkpoints would
+  # land INSIDE THE CONTAINER and die with the pod, i.e. evaporate in exactly the
+  # preemption they exist to survive. Same bug that silently ate every log until
+  # HYPOTEST_LOG_DIR was introduced (see logger.log_dir).
+  # workloads.sh sets HYPOTEST_CKPT_DIR to <PVC>/ckpt/grpo-hypotest-27b as of
+  # 2026-08-12 -- a FRESH path, which is what retires the old 9B r=64 checkpoints
+  # (get_latest_checkpoint_path() auto-resumes with no config check, so pointing
+  # at the old dir would fail on a shape mismatch). The fallback below is for
+  # local runs only; it is relative and 01_grpo.sh cds to /opt/nemo-rl.
+  checkpoint_dir: ${oc.env:HYPOTEST_CKPT_DIR,results/grpo-hypotest-27b}
+
+  # null, NOT "val:accuracy". Validation does not run here (val_at_start/end are
+  # false and val_period exceeds the step count), so that metric never exists.
+  # With a metric_name set, checkpoint.py:289 filters history to checkpoints that
+  # HAVE the metric and finds none. null makes it sort by step and keep the most
+  # recent -- which is what resume-after-preemption needs anyway.
+  metric_name: null
+  higher_is_better: true
+  # Keep 2 so a checkpoint being written when preemption hits does not leave zero
+  # usable ones. Each is ~219 MB (15.7M-param LoRA + optimizer), not a full model.
+  keep_top_k: 2
+  # Was 10 -- more than the whole validation run, so it would never have fired.
+  # At ~21 min/step this is roughly one checkpoint per hour.
+  # 2026-08-16: 2 -> 1. h100 preemptions spiked to ~every 70 min, and with a step
+  # taking ~55-90 min the trainer kept getting killed before reaching the next
+  # even-numbered checkpoint -> it thrashed, resuming from the same step_36 with
+  # zero net progress. save_period 1 checkpoints EVERY step so each completed step
+  # sticks. Each ckpt ~219 MB, keep_top_k 2 prunes -- cheap.
+  save_period: 1
+  # 2026-08-14: null = NO time cap (run indefinitely; user removed the 24h limit).
+  # The run ends at max_num_epochs (166 steps), not a wall-clock timeout.
+  checkpoint_must_save_by: null
+  # REQUIRED for a real resume. With false, restarting after preemption reloads
+  # weights but restarts Adam from scratch -- momentum and variance gone.
+  save_optimizer: true
+
+  # --- the artifact you can actually load afterwards -------------------------
+  # lora_cfg.enabled makes automodel/checkpoint.py set is_peft and attach
+  # PeftAddon automatically (checkpoint.py:239), so each checkpoint already
+  # contains a PEFT adapter rather than a raw shard dump. save_consolidated adds
+  # ConsolidatedHFAddon (checkpoint.py:179), which writes the HF metadata that
+  # makes the adapter loadable with PeftModel.from_pretrained() against the base
+  # Qwen3.5-9B -- no NeMo RL needed to consume it.
+  #
+  # Was MEASURED at 15,728,640 params fp32 (~63 MB), 64 tensors across 32
+  # modules, on Qwen3.5-9B at dim 64. On Qwen3.6-27B at dim 32 it is
+  # 20,971,520 params (~84 MB), 128 tensors across 64 modules -- see lora_cfg.
+  #
+  # >>> THE CHECKPOINTS IN rl/results/ckpt/ ARE NOW INCOMPATIBLE. <<<
+  # They are Qwen3.5-9B, r=64, 32 modules. This config is Qwen3.6-27B, r=32,
+  # 64 modules -- wrong model, wrong rank, wrong module count. grpo.py:269
+  # get_latest_checkpoint_path() auto-resumes from the newest checkpoint dir
+  # with NO config check, so an untouched launch will try to load them and fail
+  # on a shape mismatch at startup. Move or delete step_9/step_12 first.
+  # NOTE step_12 is the provenance for rl/models/qwen3.5-9b-grpo-preflight12/ --
+  # move, do not delete, if that adapter still matters.
+  #
+  # UNTESTED on this stack as of 2026-08-11 -- first run with checkpointing on.
+  # If it fails, it fails at save time (step 3), not at the end, so you find out
+  # ~1 h in rather than after a full pass.
+  save_consolidated: true
+  model_save_format: "safetensors"
+
+policy:
+  # 2026-08-12: Qwen3.5-9B -> Qwen3.6-27B. bf16, NOT the -FP8 checkpoint.
+  #
+  # WHY NOT FP8: its `modules_to_not_convert` exempts linear_attn (A_log, conv1d,
+  # dt_bias, projections), all norms, embed_tokens, lm_head, mtp and the vision
+  # tower -- i.e. the entire 12.90 GB REPLICATED block stays full size on every
+  # rank. Only the MLP (34.23 -> 17.12 GB) and full-attn qkvo (3.36 -> 1.68 GB)
+  # shrink, so TP=4 goes 23.56 -> 18.87 GB/GPU: 4.7 GB against a 15.26 GB gap.
+  # And to collect it you would have to solve two things first: every quantized
+  # module carries weight_scale_inv [out/128, in/128], which qwen3_tp_plan.py has
+  # no entry for -- ColwiseParallel shards `weight` and leaves the scale
+  # replicated, so each rank dequantizes its shard against the full scale tensor
+  # (silent corruption, not a crash) -- and the refit would have to re-quantize
+  # bf16 -> block-FP8 every step. 7 of the 9 plan entries (37.6 of 42.67 GB
+  # sharded) hit quantized modules, so this is not an edge case. Not worth it for
+  # 4.7 GB. FP8 belongs on the vLLM side only (see vllm_cfg).
+  #
+  # The bf16 snapshot is already in the local hub (52 GB) and HF_HUB_OFFLINE=1
+  # resolves it. Confirmed genuinely 3.6, not a renamed 3.5: its chat_template
+  # .jinja has `preserve_thinking` at line 100 -- handoff §7's discriminator.
+  model_name: "Qwen/Qwen3.6-27B"
+  tokenizer:
+    name: ${policy.model_name}
+    chat_template_kwargs: null
+  hf_config_overrides: {}
+  train_global_batch_size: ${mul:${grpo.num_prompts_per_step}, ${grpo.num_generations_per_prompt}}  # = 4
+  train_micro_batch_size: 1
+  logprob_batch_size: 1
+  generation_batch_size: 4
+  # ===========================================================================
+  # THIS IS THE SETTING THAT DECIDES WHETHER THE RUN FITS. Read before touching.
+  # ===========================================================================
+  # It is not a context-window preference. It bounds the tensor that has OOM'd
+  # every run so far -- `grad_input` in ChunkedDistributedLogprob.backward:
+  #
+  #     grad_input = longest_episode_in_microbatch x (vocab / TP) x dtype_bytes
+  #
+  # NOT `max_total_sequence_length x ...`. Earlier notes claimed sequences are
+  # PADDED to this value via train_mb_tokens; that is WRONG and it misdirected
+  # several runs. train_mb_tokens sits under dynamic_batching/sequence_packing,
+  # both `enabled: false` below, so it is inert -- and the real padding code
+  # (nemo_rl/data/llm_message_utils.py:332) pads to the longest ACTUAL sequence
+  # in the batch. Run 8 allocated 62,871 tokens under a 65,536 cap; padding to
+  # the cap would have given exactly 65,536.
+  #
+  # What this setting actually does on the nemo_gym path is set vLLM's
+  # max_model_len -- a hard REJECTION ceiling during rollout. It clips episodes;
+  # it does not size the allocation directly. So:
+  #
+  #   * lowering it shrinks the tensor ONLY by truncating, and a truncated
+  #     episode returns `Avg Reward 0.0000` unjudged -- see below.
+  #   * AGENT_MAX_STEPS is the real lever: it shortens episodes at the source so
+  #     they FINISH under the cap instead of being cut by it.
+  #   * RAISING AGENT_MAX_STEPS (e.g. to the smoke run's 50) makes this tensor
+  #     BIGGER. The 50 in the smoke path is a measuring instrument, not a
+  #     training proposal.
+  #
+  # At the worst case the current cap admits, TP=4 and fp32:
+  #
+  #     65536 x 62,080 x 4 = 15.16 GiB     <- exactly what run 9B-1 asked for
+  #                          9.73 GiB free <- 5.43 GiB short
+  #
+  # MODEL SIZE DOES NOT ENTER. vocab is 248,320 on both the 9B and the 27B, so
+  # this tensor is byte-identical between them; a smaller model buys headroom in
+  # weights (8.30 vs 23.56 GB/GPU at TP=4) but nothing here. Two levers reach
+  # 7.58 GiB, which fits:
+  #
+  #   a) get the longest episode under 32768, keeping fp32. Costs nothing in
+  #      patches -- but lowering THIS setting alone only truncates. It has to be
+  #      paired with an AGENT_MAX_STEPS low enough that episodes finish under it.
+  #   b) allow up to 65536 and make the logits bf16.  <-- CHOSEN 2026-08-11.
+  #      Needs BOTH nemo_rl_setup.sh patches, and neither works alone:
+  #        HYPOTEST_BF16_LOGITS_PATCH  makes FSDP2's output_dtype follow
+  #                                    policy.precision instead of pinning fp32
+  #                                    (automodel/setup.py:443, no config knob --
+  #                                    this is why `precision: "bfloat16"` above
+  #                                    never reached the logits)
+  #        HYPOTEST_GRAD_BUFFER_PATCH  allocates grad_input at the INPUT dtype,
+  #                                    so it only pays off once (b) lands
+  #      Together: 65536 x 62,080 x 2 = 7.58 GiB, at full episode length with NO
+  #      truncation. Verify from the run log -- grep HYPOTEST_BF16_LOGITS, which
+  #      prints the dtype actually selected.
+  #
+  # Trajectories are captured by HYPOTEST_TRAJ_DUMP (see nemo_rl_setup.sh) BEFORE
+  # the training step, so even a run that dies in backward yields its transcripts
+  # -- upstream's own dump runs after policy.train() and has never been reached.
+  # Analyse with:
+  #     .venv/bin/python rl/scripts/analyze_traj_dump.py <traj dir>
+  # Read PER-STEP COST from it, not just the max, and size AGENT_MAX_STEPS by
+  #     target_longest_episode ~= per_step_cost x AGENT_MAX_STEPS
+  #
+  # MEASURED at AGENT_MAX_STEPS=20 (run 12, n=8): episodes are 16,556-39,771
+  # tokens, 1,433-1,988 tok/turn. Attribution: tool results 51.9%, assistant
+  # 36.6%, task prompt 11.5%. Tool results dominate -- NB_OUTPUT_LIMIT is the
+  # lever on episode length, not this cap and not thinking.
+  #
+  # AT AGENT_MAX_STEPS=30 (2026-08-11), projected linearly in turns:
+  #   mean rate     30 x 1,685 = 50,559 tok  -> grad_input bf16 5.85 GiB
+  #   hottest seen  30 x 1,989 = 59,656 tok  -> grad_input bf16 6.90 GiB
+  # Both fit (9.73 GiB was free), and both are under this 65,536 cap -- but the
+  # hottest case leaves only ~9% headroom. An episode hotter than anything yet
+  # observed would breach the cap, and vLLM REJECTS rather than truncates, giving
+  # a silent `reward 0.0` with no judge output. Watch input_lengths in the traj
+  # dump: anything near 65k means raise this cap. Doing so is nearly free on the
+  # trainer (padding is to the longest ACTUAL sequence, not the cap) and costs
+  # only vLLM KV cache.
+  #
+  # Earlier context, and its limits: a smoke run (STRIP_IMAGES on, 50 steps, real
+  # Qwen tokenizer via usage.input_tokens, n=5) gave min 21,120 / median 37,258
+  # / max 47,506. Treat 47,506 as a LOWER BOUND, not a tail -- run 8's OOM sizes
+  # a real training sequence at 62,871 tokens, 32% higher. All of it was measured
+  # ON THE 27B; the 9B's verbosity is unmeasured.
+  #
+  # Per-step cost in TRAINING is comparable to smoke -- measured from the two
+  # complete training episodes on disk (rl/results/*-iter2, cl100k proxy):
+  #     1d54e4a7-iter2   19 cells, 14,503 tok notebook  ->   763 tok/cell
+  #     fbe0e950-iter2   19 cells, 23,303 tok notebook  -> 1,226 tok/cell
+  # vs smoke's ~950/step. An earlier comment here claimed training ran at ~3,143
+  # tokens/step; that was 62,871 / 20 assuming the OOM'd episode used its full
+  # step budget, and was never measured. There is no 3x regime difference.
+  #
+  # Still unresolved: the notebook is only ~23K of a 62,871-token episode. The
+  # remainder is most likely THINKING (max_new_tokens 4090/turn x 19 turns), which
+  # would be a different lever than the cap or the step count -- but the training
+  # path writes no rollouts.jsonl, so this is unverified.
+  max_total_sequence_length: 65536
+  precision: "bfloat16"
+  logprob_chunk_size: 1024
+
+  dtensor_cfg:
+    # MUST be true whenever lora_cfg.enabled is true -- DTensorPolicyWorker V1
+    # hard-asserts against LoRA (lm_policy.py:141,
+    # "LoRA is not supported for DTensorPolicyWorker V1"). _v2 selects
+    # DTensorPolicyWorkerV2, which supports it. V2 imposes no extra config
+    # requirements; the model_save_format restriction applies to V1 only.
+    _v2: true
+    enabled: true
+    # dp = world/(tp*cp*ep) = 4/4 = 1, so this is INERT (FSDP's CPUOffloadPolicy
+    # has no data-parallel dimension to offload across). Left false rather than
+    # true-and-useless. Weights are only 8.30 GB/GPU at TP=4 -- see below -- so
+    # unlike the 27B there is nothing here worth offloading.
+    # 2026-08-12: NO LONGER INERT, and now ENABLED. The note above was written
+    # when dp=1; at 8 GPUs / tp 4 the mesh has dp=2, so FSDP's CPUOffloadPolicy
+    # has a dimension to offload across.
+    #
+    # TURNED ON AFTER A MEASURED OOM, not defensively. Run exp_001 (27B, 8 GPU
+    # colocated, dp=2, this flag false) completed generation for step 1, the
+    # refit, and the forward, then died in the BACKWARD:
+    #   torch.OutOfMemoryError: Tried to allocate 792.00 MiB
+    #   GPU 0: 79.18 GiB total, 384.38 MiB free
+    #     vLLM process:  2.96 GiB     <- colocation residual, see below
+    #     trainer:      75.73 GiB     (69.69 allocated, 1.34 reserved-unallocated)
+    # i.e. SHORT BY ~408 MiB, in torch.nn.functional.silu -- MLP *activation*
+    # memory, not the logit buffer the patches target.
+    #
+    # THE RESIDUAL IS THE REAL COST OF COLOCATION, and it is bigger than the 9B
+    # predicted (~1.7 GB): MEASURED at 2.91 GiB.
+    #   "Sleep mode freed 53.84 GiB memory, 2.91 GiB memory is still in use"
+    # Sleep discards the KV cache (40.65 GiB) and backs weights up to CPU
+    # (13.11 GiB); what stays is CUDA context and NCCL buffers.
+    #
+    # >>> DO NOT try to fix this with gpu_memory_utilization. <<< That sizes the
+    # KV cache, which sleep ALREADY frees. It cannot touch the 2.91 GiB.
+    #
+    # >>> DO NOT set PYTORCH_ALLOC_CONF=expandable_segments:True. <<< Torch's OOM
+    # message recommends it; handoff §8 forbids it -- it breaks the weight refit
+    # into vLLM (pidfd_getfd: Operation not permitted, the pod lacks
+    # CAP_SYS_PTRACE), verified across three runs.
+    cpu_offload: true
+    # 2026-08-10: 1 -> 4. Two reasons, and the first is not about capacity.
+    #
+    # 1. AT TP=1 THE CHUNKED LOGPROB PATH IS UNREACHABLE. ChunkedDistributedLogprob
+    #    is gated on `isinstance(logits, DTensor)` (automodel/train.py:680), which
+    #    is only true when the vocab is split, i.e. TP > 1. At TP=1 control falls
+    #    to _compute_local_logprobs, which materialises the whole fp32 table. At
+    #    65536 tokens that is 65536 x 248320 x 4 = 60.6 GB, plus a bf16 copy.
+    #    That is the original pre-2026-08-06 failure and it does not fit.
+    #
+    # 2. Vocab is 248,320 -- the SAME as the 27B -- so it divides by 4 cleanly
+    #    (62,080 columns/rank) and every logits figure from the 27B work carries
+    #    over exactly. It does NOT divide by 3, which is why a 1 vLLM + 3 trainer
+    #    split cannot use this knob at all.
+    #
+    # TP=4 over TP=2 here because the logit shard is the dominant term and TP=4
+    # halves it (62,080 vs 124,160 columns/rank); the 9B's weights are small
+    # enough that losing DP costs nothing. Measured by check_tp_plan.py against
+    # the real checkpoint: TP=4 -> 8.30 GB/GPU, TP=2 -> 11.97 GB/GPU of 19.31 total.
+    tensor_parallel_size: 4
+    # Do NOT set true. Automodel only augments its BUILT-IN plans with SP entries;
+    # a supplied dict is used verbatim, and we supply one below. Silently a no-op.
+    sequence_parallel: false
+    context_parallel_size: 1
+    expert_parallel_size: 1
+    activation_checkpointing: true
+    # REQUIRED now that tensor_parallel_size > 1. Qwen3.5-9B is multimodal-wrapped
+    # exactly like the 27B -- 333 of its 775 tensors are `model.visual.*` and the
+    # decoder lives at `model.language_model.layers.*`, not `model.layers.*`. The
+    # auto plan targets the latter and would match almost nothing, sharding no
+    # weights and leaving lm_head replicated so the logits are not a DTensor.
+    #
+    # The 27B's plan works here UNCHANGED (it is wildcarded on layer index and
+    # keyed on the same prefix). Verified 2026-08-10 with
+    #   .venv/bin/python rl/scripts/check_tp_plan.py --plan rl/configs/qwen3_tp_plan.py \
+    #       --model-dir <Qwen3.5-9B snapshot>
+    #   -> RESULT: OK, 14.67 GB sharded (76%), linear_attn/visual/mtp all 0.
+    # The "qwen3_6" in the filename is historical; it serves both models.
+    custom_parallel_plan: rl.configs.qwen3_tp_plan.custom_parallel_plan
+    # 2026-08-11: null -> 1, after the preflight OOM'd at STEP 7 on FRAGMENTATION:
+    #
+    #   Tried to allocate 756.00 MiB; 740.06 MiB free of 79.18 GiB
+    #   58.50 GiB allocated by PyTorch, 15.46 GiB RESERVED BUT UNALLOCATED
+    #
+    # Not a too-large tensor -- it could not find a contiguous 756 MiB while
+    # holding 15.5 GiB of fragments. Episode length was NOT the cause: step 3
+    # survived a 49,966-token episode and step 7 died at 48,379. Fragmentation
+    # accumulates across steps, which is why 4-step runs never hit it and this
+    # died at 7. A 46-step epoch would hit it sooner still, relative to finishing.
+    #
+    # This calls torch.cuda.empty_cache() on every microbatch boundary
+    # (dtensor_policy_worker_v2.py:394), returning reserved-but-unallocated
+    # memory to the allocator.
+    #
+    # NOT PYTORCH_ALLOC_CONF=expandable_segments:True, which the torch error
+    # message itself suggests: workloads.sh documents that it BREAKS the weight
+    # refit into vLLM (`pidfd_getfd: Operation not permitted` -- the pod has no
+    # CAP_SYS_PTRACE), verified across three runs. This knob does not touch that
+    # IPC path.
+    #
+    # Cost: upstream warns of "large performance overhead". Acceptable here --
+    # policy_training is only 13-27% of wall time (generation is 71-86%), so even
+    # a sizeable training slowdown is a small fraction of the total.
+    clear_cache_every_n_steps: 1
+
+    # Attention projections only. Reaches the 8 full-attention layers
+    # (32 / full_attention_interval 4), 15,728,640 trainable params at dim 64 (measured) --
+    # enough to confirm gradients flow, but deliberately small.
+    #
+    # If you want to watch the loss actually move, add gate_proj/up_proj/
+    # down_proj. That is safe here: this model has a dense MLP, so those names
+    # resolve to ordinary linears and not to fused expert tensors.
+    lora_cfg:
+      enabled: true
+      match_all_linear: false
+      # Scoped to the language model by wildcard, NOT bare names + exclude_modules:
+      # Automodel's ModuleMatcher rejects both fields at once ("target_modules and
+      # exclude_modules are mutually exclusive"). target_modules supports globs,
+      # matched against the FULL module path, so the scoping moves into the
+      # patterns themselves.
+      #
+      # ON Qwen3.6-27B (2026-08-12) these patterns match 64 modules -- the 16
+      # full-attention layers (64 / full_attention_interval 4) x 4 projections --
+      # all under model.language_model, NONE under mtp or model.visual. Verified
+      # by rl/scripts/check_tp_plan.py against the real 3.6 snapshot, which
+      # reports exactly 16 modules for each of q/k/v/o_proj.
+      # (On the previous Qwen3.5-9B it was 32 modules / 8 full-attn layers.)
+      # linear_attn.out_proj is still excluded, by construction: an allow-list of
+      # these four names cannot match it.
+      target_modules:
+        - "*language_model*q_proj"
+        - "*language_model*k_proj"
+        - "*language_model*v_proj"
+        - "*language_model*o_proj"
+      # 2026-08-12: was dim 64 / alpha 128. NOTE this changes TWO things, not one:
+      # capacity halves, AND the LoRA scale alpha/dim goes 128/64 = 2.0 ->
+      # 32/32 = 1.0, so the update is half as strong per step at the same
+      # learning rate. If the loss moves too slowly, raise alpha before raising
+      # dim -- alpha is free, dim is not.
+      #
+      # Param count on 3.6-27B: 64 modules x 2 matrices x 32 x 5120 = 20,971,520
+      # (~84 MB fp32, 128 tensors). That is MORE than the 9B carried at r=64
+      # (15,728,640), despite halving the rank -- 64 target modules instead of 32
+      # and hidden_size 5120 instead of 4096 more than cancel it. Adjust the
+      # ~63 MB / 219 MB checkpoint-size figures under checkpointing accordingly.
+      dim: 32
+      alpha: 32
+      dropout: 0.0
+      dropout_position: "pre"
+      lora_A_init: "xavier"
+      use_triton: false
+
+  megatron_cfg:
+    enabled: false
+
+  draft:
+    enabled: false
+    model_name: null
+    loss_weight: 0.1
+    num_layers: null
+    aux_layer_indices: null
+
+  dynamic_batching:
+    enabled: false
+    train_mb_tokens: ${mul:${policy.max_total_sequence_length}, ${policy.train_micro_batch_size}}
+    logprob_mb_tokens: ${mul:${policy.max_total_sequence_length}, ${policy.logprob_batch_size}}
+    sequence_length_round: 64
+
+  sequence_packing:
+    enabled: false
+    train_mb_tokens: ${mul:${policy.max_total_sequence_length}, ${policy.train_micro_batch_size}}
+    logprob_mb_tokens: ${mul:${policy.max_total_sequence_length}, ${policy.logprob_batch_size}}
+    algorithm: "modified_first_fit_decreasing"
+    sequence_length_round: 64
+
+  make_sequence_length_divisible_by: 1
+  max_grad_norm: 1.0
+
+  optimizer:
+    name: "torch.optim.AdamW"
+    kwargs:
+      lr: 1.0e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+      eps: 1e-8
+      # Required with DTensor: these kernels do not handle sharded params.
+      foreach: false
+      fused: false
+
+  scheduler:
+    - name: "torch.optim.lr_scheduler.ConstantLR"
+      kwargs:
+        factor: 1.0
+        total_iters: 10000000000
+    - milestones: []
+
+  generation:
+    backend: "vllm"
+    # Fixed, NOT ${policy.max_total_sequence_length}. That interpolation ties the
+    # per-turn generation limit to the whole-trajectory budget, so raising the
+    # context 16384 -> 65536 also let a single turn emit 65536 tokens. Observed
+    # 2026-08-05 on the first 9B run: the model rambled instead of calling a
+    # tool (notebooks had 0 cells), and get_logprobs then died trying to
+    # allocate 17.85 GiB of logits -- 248320 vocab x ~38k tokens x bf16.
+    #
+    # 4090 is per TURN; 50 turns still fit inside max_total_sequence_length.
+    max_new_tokens: 4090
+    temperature: 1.0
+    top_p: 1.0
+    top_k: null
+    stop_token_ids: null
+    stop_strings: null
+    vllm_cfg:
+      async_engine: true
+      expose_http_server: true
+      precision: ${policy.precision}
+      # 2026-08-12: 1 -> 4. FORCED BY THE MODEL SIZE, not a tuning choice.
+      # Qwen3.6-27B is 55.56 GB bf16 (53.79 GB with language_model_only, which
+      # only drops the vision tower). At TP=1 one replica must hold all of that
+      # on a single H100, against gpu_memory_utilization 0.7 = 56 GB -- it does
+      # not fit, and there would be no KV cache left even if it did. TP=4 puts
+      # ~13.4 GB/GPU of weights and leaves real room for the cache.
+      # 8 GPUs / TP 4 = 2 vLLM replicas, so generation is data-parallel x2.
+      tensor_parallel_size: 4
+      pipeline_parallel_size: 1
+      expert_parallel_size: 1
+      # The model is 19.3 GB bf16; the rest of this allocation becomes KV cache.
+      gpu_memory_utilization: 0.7
+      max_model_len: ${policy.max_total_sequence_length}
+      # Conservative settings for this model's hybrid linear attention. bbh's
+      # inference config documents the failure modes: a conv1d cache assert that
+      # a low max_num_seqs avoids, a conflict between the GDN/SSM recurrent state
+      # and the prefix cache, and CUDA-graph capture over conv1d/SSM ops -- hence
+      # eager. Relax these one at a time, not together.
+      # 2026-08-14 SPEED PROBE RESULT: tried false, it CRASHES vLLM at engine init
+      # -- torch._dynamo.exc.Unsupported "Unsupported method call" in
+      # compilation/cuda_graph.py over the GDN/mamba path (User compiler error).
+      # CUDA graphs are genuinely incompatible with this hybrid model. Eager stays.
+      enforce_eager: true
+      max_num_seqs: 4
+      # 2026-08-12: ENABLED. This is the single largest generation cost in the
+      # run, by a wide margin.
+      #
+      # The agent loop talks to vLLM over stateless /v1/chat/completions, so
+      # every turn re-sends the whole conversation and, with the cache off,
+      # vLLM re-prefills all of it. Prefill cost is therefore QUADRATIC in turn
+      # count. Measured over the 24 episodes in rl/results/traj/20260811-200229:
+      #
+      #     final context tokens (sum of episode lengths)  :    818,498
+      #     decoded tokens                                 :    352,518
+      #     prefill actually performed                     : 11,480,008
+      #     prefill with this flag on                      :    465,980   24.6x
+      #
+      # 93% of all token-work vLLM did was recomputing bytes it had computed on
+      # the previous turn. Per-episode amplification was 15-66x, median ~32x.
+      # NOTE the logged "Generation Worker Group (Tokens/sec)" counts each
+      # sequence ONCE, so it does not show any of this -- it made generation
+      # look merely slow rather than 30x redundant.
+      #
+      # THE RISK, and why it was off: vLLM does not officially support prefix
+      # caching on hybrid models. ModelConfig.is_prefix_caching_supported
+      # (vllm/config/model.py) returns False for attn_type == "hybrid" -- which
+      # Qwen3.5 is (GDN + full attention every 4 layers) -- "since the feature
+      # is still experimental". That is a DEFAULT, not an override: arg_utils.py
+      # only applies it when enable_prefix_caching is None, and the
+      # "may produce incorrect outputs" warning is gated on
+      # runner_type == "pooling". On a generative model, setting this true is
+      # honoured SILENTLY. No warning, no crash. If GDN recurrent state is
+      # reused wrongly across cache hits, rollouts corrupt quietly.
+      # (Read on vLLM 0.19.1; the training image is 0.17.1, which is older and
+      # no more permissive. Confirm in-pod with:
+      #   python -c "from vllm.config import ModelConfig; import inspect; \
+      #     print(inspect.getsource(ModelConfig.is_prefix_caching_supported))")
+      #
+      # THE CANARY: train/gen_kl_error. It is the KL between the logprobs vLLM
+      # returned for the sampled tokens and the trainer's recomputation of those
+      # same tokens, so it detects exactly this failure -- vLLM producing
+      # something the true model would not. Baseline with the cache OFF, run
+      # exp_007, all 6 steps: 0.0003-0.0005.
+      #
+      #   CHECK IT ON STEP 1. Still ~1e-4  -> cache is consistent, keep it.
+      #   An order of magnitude up (>=1e-2) -> set this back to false. Do not
+      #   let a long run continue past a jump; the rewards will look plausible.
+      enable_prefix_caching: true
+      use_deep_gemm: false
+      num_last_layers_in_bf16: 0
+      num_first_layers_in_bf16: 0
+      kv_cache_dtype: "auto"
+      skip_tokenizer_init: false
+      language_model_only: true
+      http_server_serving_chat_kwargs:
+        # 2026-08-12, MODEL CHANGE 3.5-9B -> 3.6-27B: the custom template is
+        # GONE, replaced by chat_template_kwargs.preserve_thinking below. This is
+        # handoff §7's standing instruction ("ON A 3.6 MODEL, DELETE THIS
+        # TEMPLATE"), and it is not cosmetic -- qwen3_5_retain_thinking.jinja
+        # hand-patches a flag INTO 3.5 that 3.6 already ships:
+        #     Qwen3.6:  {%- if (preserve_thinking is defined and
+        #                       preserve_thinking is true)
+        #                      or (loop.index0 > ns.last_query_index) %}
+        #     Qwen3.5:  {%- if loop.index0 > ns.last_query_index %}
+        # Verified against the local 3.6 snapshot: that line is present at
+        # chat_template.jinja:100. Pointing a 3.5-shaped template at a 3.6 model
+        # would fight the model's own template for no gain.
+        #
+        # WHAT IT IS STILL FOR (the requirement did not go away, only the
+        # mechanism): the stock template renders <think> only for assistant turns
+        # after the last user message that is not <tool_response>-wrapped.
+        # hypotest injects FORCE_MSG ("TIME EXPIRED...") as a plain user message
+        # at AGENT_MAX_STEPS, which resets that index to the end and strips
+        # thinking from EVERY prior turn -- measured: the model emitted <think>
+        # in 9/9 turns, the re-sent prompt kept 0/9. The prefix
+        # is then shorter than what the model produced, which trips
+        # vllm_worker_async.py:113 and 500s the rollout. Verified: this template
+        # thinking from EVERY prior turn -- measured on 3.5: the model emitted
+        # <think> in 9/9 turns, the re-sent prompt kept 0/9. The prefix is then
+        # SHORTER than what the model produced, which trips the monotonicity
+        # assert at vllm_worker_async.py:113 and 500s the rollout.
+        #
+        # On 3.6 the model's own template already guards that branch on
+        # preserve_thinking, so setting that flag is the whole fix -- but it is
+        # set on the CLIENT, under env.nemo_gym...extra_body.chat_template_kwargs
+        # at the bottom of this file, NOT here.
+        #
+        # DO NOT ADD `chat_template_kwargs:` TO THIS BLOCK. These kwargs are
+        # splatted into OpenAIServingChat(**kwargs) (vllm_worker_async.py:~494)
+        # and its __init__ is keyword-only with NO **kwargs catch-all; the
+        # parameter is named `default_chat_template_kwargs`. Passing
+        # `chat_template_kwargs` here is an immediate
+        #   TypeError: __init__() got an unexpected keyword argument
+        # at vLLM server startup. (Checked against vLLM 0.19.1
+        # entrypoints/openai/chat_completion/serving.py:85-107.)
+        #
+        # The client path is also the one this repo has already proven --
+        # gym_policy_smoke.yaml:53 sets preserve_thinking exactly that way, under
+        # a comment saying to keep it in step with this config. Server defaults
+        # and request kwargs merge per-key anyway
+        # (`default | request`, engine/serving.py:807), so the client-side
+        # enable_thinking does NOT clobber a preserve_thinking set elsewhere.
+        #
+        # CONSEQUENCE -- HYPOTEST_CHAT_TEMPLATE_PATCH IS NOW DEAD CODE.
+        # It existed only because a `chat_template:` PATH was passed here:
+        # OpenAIServingChat wants the template CONTENT, vLLM's api_server
+        # resolves paths via load_chat_template() before constructing, and NeMo
+        # RL splats these kwargs straight in (vllm_worker_async.py:~494),
+        # skipping that resolution -- so unpatched, the path string was used
+        # verbatim AS the template. Run 11 died on exactly that:
+        #   AssertionError: Found possibly non-monotonically increasing trajectory!
+        #     Template repr (detokenized):
+        #       '/config/rl/configs/qwen3_5_retain_thinking.jinja'
+        # With no path here there is nothing for it to fix. It is idempotent and
+        # anchor-guarded so it stays harmless in nemo_rl_setup.sh, but do NOT
+        # expect `HYPOTEST_CHAT_TEMPLATE loaded ... (8567 chars)` in the log any
+        # more -- its ABSENCE is now correct. handoff §1 check #3 is obsolete;
+        # rl/configs/qwen3_5_retain_thinking.jinja is kept only for a 3.5 revert.
+        enable_auto_tools: true
+        # If tool calls arrive as raw text instead of function_call items, this
+        # is the first knob to change.
+        tool_parser: qwen3_coder
+        # ADDED 2026-08-11 -- THIS WAS MISSING AND IT BROKE EVERY TRAINING RUN.
+        #
+        # Symptom: rollouts "completed" with 0 reward and nothing to learn from.
+        # The env pod's request log showed the entire story --
+        #     POST /start x4   POST /reset x4   POST /close x4
+        # and NOT ONE /step. The agent never took an action; notebooks had 0
+        # cells, no score_info.json was written, the judge never ran, and the
+        # trajectory NeMo RL trained on was 2 messages: a 16-token user turn plus
+        # one assistant blob of up to 19,276 tokens.
+        #
+        # Cause: with enable_thinking true and NO reasoning parser, vLLM never
+        # separates <think>...</think> from the answer, so the tool call is never
+        # extracted as a function_call item -- the whole generation arrives as
+        # content.
+        #
+        # DO NOT use the log line `reasoning_parser=''` as evidence either way.
+        # That one is inside `structured_outputs_config=StructuredOutputsConfig(
+        # ... reasoning_parser='' ...)`, the ENGINE-level guided-decoding setting.
+        # It is unrelated to this key and reads '' whether or not the serving-chat
+        # parser is set, because this value goes to OpenAIServingChat rather than
+        # to the engine. To check whether this line is live, grep the config dump
+        # for `'reasoning_parser': 'qwen3'` under http_server_serving_chat_kwargs.
+        #
+        # gym_policy_smoke.yaml sets `reasoning_parser: qwen3` (as a
+        # vllm_serve_kwargs CLI arg) and the smoke path has always produced real
+        # notebooks and real reward spread. This is the ONLY difference that
+        # explains why smoke works and training does not.
+        #
+        # These kwargs are splatted into OpenAIServingChat(**kwargs)
+        # (vllm_worker_async.py:494), whose signature takes reasoning_parser
+        # alongside the tool_parser/enable_auto_tools above.
+        #
+        # NOTE `uses_reasoning_parser: true` under env.nemo_gym below is the
+        # CLIENT side asserting a parser is in use. It does not configure the
+        # server, and its presence made this look configured when it was not.
+        reasoning_parser: qwen3
+    vllm_kwargs:
+      compilation_config:
+        backend: eager
+      mamba_ssm_cache_dtype: "float32"
+    colocated:
+      # 2026-08-12: COLOCATED, 8 GPUs. Reversal of the 2026-08-10 note below;
+      # that note was reasoning about a 5-GPU layout, not stating a general rule.
+      #
+      # Two reasons, and the first is the one that forces it:
+      #
+      # 1. NON-COLOCATED AT 8 GPUs DOES NOT SOLVE THE MEMORY PROBLEM. The
+      #    trainer rank count must be divisible by tensor_parallel_size 4, so
+      #    non-colocated 8 = 4 vLLM + 4 trainer -- still 4 trainer ranks, still
+      #    dp=1, still 23.56 GB/GPU of weights, i.e. exactly the configuration
+      #    whose optimizer step OOM'd every 27B run. Only dp=2 buys headroom,
+      #    and dp = world/(tp*cp*ep) = 8/4 needs all EIGHT ranks on the trainer.
+      #    Colocation is what makes that possible.
+      #
+      # 2. It stops paying for idle silicon. Generation was 72-94% of step time
+      #    in exp_007; non-colocated, every trainer GPU idles for that whole
+      #    window. Colocated, generation gets all 8.
+      #
+      # THE REAL COST, from this repo's own measurement: a colocated vLLM
+      # returned only ~37.9 of 39.6 GB on sleep. That ~1.7 GB leak mattered
+      # little at 9B and matters more here. If startup OOMs, gpu_memory_
+      # utilization is the first knob, not this flag.
+      #
+      # CAVEAT ON REASON 2: the 72-94% figure was measured with prefix caching
+      # OFF. That flag (see enable_prefix_caching) removes ~93% of vLLM's token
+      # work, so generation's share is about to fall sharply -- possibly toward
+      # 50/50 with training, where sleep/wake overhead weighs more. Colocation is
+      # most favourable when generation dominates. TAKE THE FIRST STEP'S TIMING
+      # BREAKDOWN AS A NEW BASELINE rather than trusting the old ratio.
+      # 2026-08-12: DISAGGREGATED for the async test. 4 GPUs vLLM + 4 GPUs
+      # trainer, dedicated (not time-shared). Required for async: the background
+      # collector generates CONTINUOUSLY, so vLLM can never sleep to hand the
+      # trainer the card -- the two must live on separate GPUs.
+      #
+      # WHY THIS MIGHT FIT DESPITE dp=1 (correcting the note below): the colocated
+      # dp=1 OOM reasoning assumed vLLM's residual sat on the trainer's GPUs. It
+      # no longer does -- vLLM is on its own 4 GPUs. exp_001 OOM'd by only 408 MiB
+      # WITH a 2.96 GiB vLLM residual on the trainer card; remove that residual
+      # (disaggregation does) and the trainer should clear dp=1 with ~2.5 GiB to
+      # spare, even though cpu_offload is inert at dp=1. THIS IS THE TEST.
+      #
+      # resources = the INFERENCE side. grpo.py:456 (non-colocated path) reads it
+      # and the trainer gets cluster.gpus_per_node - this = 8 - 4 = 4 -> dp=1.
+      #
+      # 2026-08-13: COLOCATED again (handoff §0.4 revert). All 8 GPUs shared:
+      # trainer tp=4 -> dp=2 (the only layout the 27B backward fits in, §0.1),
+      # vLLM tp=4 x 2 replicas. gpus_per_node back to 8 to match cluster.
+      enabled: true
+      resources:
+        gpus_per_node: 8
+        num_nodes: 1
+
+data:
+  max_input_seq_length: null
+  shuffle: true
+  num_workers: 0
+  use_multiple_dataloader: false
+  train:
+    # 2026-08-11: tiny.jsonl -> train.jsonl. tiny has 2 problems, and with
+    # num_prompts_per_step: 2 and max_num_epochs: 1 that is ONE step -- the run
+    # printed "Step 1/1" and stopped, so grpo.max_num_steps: 20 was never
+    # anywhere near reached. train.jsonl has 4, giving 2 steps x 4 episodes.
+    #
+    # To actually train rather than smoke-test the loop, raise max_num_epochs:
+    # steps/epoch = len(dataset) / num_prompts_per_step = 4 / 2 = 2, so 10 epochs
+    # reaches the configured max_num_steps of 20.
+    # 2026-08-13: bixbench-hypothesis, 250 tasks, task_idx 0..249. See
+    # rl/data/make_combined_splits.py and server.train.yaml's combined source.
+    data_path: /config/rl/data/train_bixbench.jsonl
+  validation:
+    # 2026-08-12: tiny.jsonl -> eval.jsonl, and validation is now ACTUALLY ON
+    # (see grpo.val_at_start / val_at_end / val_period).
+    #
+    # This is handoff §5's whole point: with num_prompts_per_step 3 every step
+    # trains on a DIFFERENT set of tasks, so the per-step reward series measures
+    # task difficulty, not progress. exp_001 step 1 makes that concrete -- three
+    # groups scoring 0.60/0.30/0.60/0.60, 0.00/0.10/0.00/0.00 and
+    # 0.90/0.90/0.90/0.90. Averaging those into one number tells you nothing.
+    # A FIXED eval set measured at the same points is the only comparable series.
+    #
+    # eval.jsonl is 5 held-out problems, disjoint from train.jsonl (both cut by
+    # make_splits.py from the same 51-problem manifest).
+    # 2026-08-13: hypotest held-out, 51 judgeable tasks, task_idx 250..300.
+    # Disjoint from train (zero id overlap, verified). 14 rubric-less hypotest
+    # capsules were dropped -- see make_combined_splits.py.
+    data_path: /config/rl/data/eval_hypotest15.jsonl  # 2026-08-15: 15 held-out hypotest tasks (5 was too noisy)
+  default:
+    dataset_name: NemoGymDataset
+    env_name: "nemo_gym"
+    prompt_file: null
+    system_prompt_file: null
+    processor: "nemo_gym_data_processor"
+
+env:
+  should_use_nemo_gym: true
+  # WARNING: this flag is INVERTED from what its name suggests. Upstream guards
+  # the trajectory dump with `if not _should_log_nemo_gym_responses(...)`
+  # (grpo.py:2049), so setting it TRUE *skips* train_data_step{N}.jsonl. It only
+  # controls whether the raw `full_result` blobs stay in rollout_metrics.
+  #
+  # Left true because the built-in dump is unreachable anyway -- it runs at
+  # grpo.py:~2068, AFTER the policy.train() that has OOM'd every run. Trajectory
+  # capture is handled instead by HYPOTEST_TRAJ_DUMP (see nemo_rl_setup.sh),
+  # which writes before the training step. Revisit if training ever completes.
+  should_log_nemo_gym_responses: true
+  nemo_gym:
+    rollout_max_attempts_to_avoid_lp_nan: 1
+    is_trajectory_collection: false
+    config_paths:
+      - responses_api_models/vllm_model/configs/vllm_model_for_training.yaml
+      - ${oc.env:HYPOTEST_GYM_CONFIG}
+    policy_model:
+      responses_api_models:
+        vllm_model:
+          uses_reasoning_parser: true
+          extra_body:
+            chat_template_kwargs:
+              enable_thinking: true
+              # 2026-08-12, THE Qwen3.6 THINKING FIX. Replaces the custom 3.5
+              # template (deleted from http_server_serving_chat_kwargs above).
+              #
+              # It MUST live here, on the request, not in the server block:
+              # OpenAIServingChat.__init__ takes `default_chat_template_kwargs`
+              # and has no **kwargs, so a `chat_template_kwargs:` up there is a
+              # TypeError at startup. gym_policy_smoke.yaml:53 already sets it
+              # this way -- these two files must stay in step.
+              #
+              # WHAT IT DOES: 3.6's stock template keeps thinking blocks only
+              # for turns after the last user message (template line 100). At
+              # AGENT_MAX_STEPS hypotest injects FORCE_MSG as a plain user
+              # message, which resets that index and strips <think> from every
+              # prior turn -- the re-sent prefix then comes back SHORTER than
+              # what the model produced and trips the monotonicity assert at
+              # vllm_worker_async.py:113. This flag keeps them all.
+              #
+              # Qwen documents it for exactly this case: it "can enhance
+              # decision consistency" in agent scenarios and "reduce overall
+              # token consumption by minimizing redundant reasoning".
+              #
+              # COST: every prior turn's reasoning is re-sent, so episodes are
+              # LONGER than a run without it. The 9B's measured token
+              # distribution (§4 of handoff.md) was taken with it on.
+              preserve_thinking: true
+
+logger:
+  # MUST resolve onto the PVC in the cluster. This was `logs/grpo-hypotest-9b`,
+  # a RELATIVE path, and 01_grpo.sh cds to /opt/nemo-rl before exec -- so every
+  # log landed inside the container and died with the pod. That is why the
+  # transcripts from runs 5-9 no longer exist. workloads.sh sets HYPOTEST_LOG_DIR
+  # to ${SAVE_DIR}/logs/grpo-hypotest-27b (2026-08-12, was -9b); the fallback
+  # keeps local runs working. exp_00N counters restart under the new path --
+  # exp_007 is the last 9B run, and lives under the old logs/grpo-hypotest-9b.
+  log_dir: ${oc.env:HYPOTEST_LOG_DIR,logs/grpo-hypotest-27b}
+  num_val_samples_to_print: 0
+  wandb_enabled: true
+  tensorboard_enabled: false
+  mlflow_enabled: false
+  swanlab_enabled: false
+  monitor_gpus: true
+  wandb:
+    project: ${oc.env:WANDB_PROJECT,grpo-hypotest}
+    # Was the static "qwen3.5-9b-lora", so every run reported under one name and
+    # they were impossible to tell apart in the UI. workloads.sh sets this per
+    # submission (tag + timestamp), so the preflight and the full epoch are
+    # separate runs.
+    name: ${oc.env:WANDB_RUN_NAME,qwen3.5-9b-lora}
+  tensorboard: {}
+  gpu_monitoring:
+    collection_interval: 10
+    flush_interval: 10
+
+cluster:
+  # 2026-08-12: 5 -> 8. COLOCATED, so all 8 are shared between vLLM and the
+  # trainer rather than split (see generation.colocated above).
+  #   trainer: 8 ranks, tp 4 -> dp = 8/(4*1*1) = 2
+  #   vLLM:    tp 4        -> 2 replicas across the same 8
+  # Must match the GPU count the workload is submitted with -- `NINE_GPUS` in
+  # rl/runai/workloads.sh, whose default was raised to 8 alongside this change.
+  # Submit fewer and the job wedges in Pending with no useful error.
+  gpus_per_node: 8
+  num_nodes: 1

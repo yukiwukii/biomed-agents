@@ -1,0 +1,83 @@
+# rl/configs/gym_hypotest_remote.yaml
+# =============================================================================
+# NeMo Gym wiring for hypotest, REMOTE mode.
+#
+# Two server blocks. The policy block is deliberately absent — see below.
+#
+#   1. hypotest_resources_server -> AviaryClientResourcesServer (client_app.py)
+#      A thin proxy that wraps aviary.core.TaskDatasetClient and forwards
+#      /seed_session,/step,/verify to an ALREADY-RUNNING hypotest dataset server
+#      (src/hypotest/dataset_server.py). Nothing from this repo is imported into
+#      the Gym venv: the environment, judges, capsules and rubric model all live
+#      on the far side of the HTTP boundary, configured by server.yaml.
+#
+#   2. hypotest_agent -> aviary_agent, the multi-turn rollout loop. This is what
+#      replaces ldp's RolloutManager during RL; it drives model <-> tools until
+#      submit_answer or max_steps, then calls /verify to collect the reward.
+#
+# The policy model server is NOT defined here. NeMo RL supplies it by prepending
+#   responses_api_models/vllm_model/configs/vllm_model_for_training.yaml
+# to env.nemo_gym.config_paths (see rl/configs/grpo_hypotest_0_8b.yaml). That
+# config proxies to NeMo RL's own colocated vLLM via ${policy_base_url} (injected
+# by nemo_rl/environments/nemo_gym.py) and sets return_token_id_information: true,
+# without which NeMo RL gets no token ids or generation logprobs and cannot train.
+# Do NOT add a local_vllm_model block here — it would launch a second, untrained
+# vLLM and silently produce off-policy rollouts.
+#
+# Derived from third_party Gym's own template:
+#   bbh-third-party/Gym/resources_servers/aviary/configs/bbh_remote.yaml
+#
+# Required env vars:
+#   HYPOTEST_SERVER_URL  http://<env-service>:8008  (the dataset server)
+#   HYPOTEST_API_KEY     must match `api_key` in server.yaml
+#   AGENT_MAX_STEPS      agent-loop turns (default 20; see note on context budget)
+#
+# Run from the Gym repo root so `resources_servers/aviary` resolves:
+#   see rl/scripts/00_smoke_rollout.sh
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1) Resources server: remote proxy to the hypotest dataset server
+# -----------------------------------------------------------------------------
+hypotest_resources_server:
+  resources_servers:
+    aviary:
+      # client_app.py, NOT hypotest_app.py. hypotest_app.py imports hypotest
+      # in-process, which would force the bioinformatics conda stack and NeMo
+      # RL's torch/vLLM/Megatron stack into a single image.
+      entrypoint: client_app.py
+      domain: coding
+      server_url: ${oc.env:HYPOTEST_SERVER_URL}
+      api_key: ${oc.env:HYPOTEST_API_KEY}
+      # Must exceed the env side's job_timeout (ExecutionConfig.job_timeout,
+      # default 3600s) or the client aborts mid-episode and the rollout is lost.
+      request_timeout: 4000
+      verified: false
+
+# -----------------------------------------------------------------------------
+# 2) Agent server: the multi-turn aviary rollout loop
+# -----------------------------------------------------------------------------
+hypotest_agent:
+  responses_api_agents:
+    aviary_agent:
+      entrypoint: app.py
+      # Episode length cap. hypotest's own env-side max_steps only injects
+      # FORCE_MSG (interpreter_env.py:1457); it never sets done. This is the
+      # binding cap. Keep it low for training: NeMo RL trains on the entire
+      # concatenated multi-turn sequence, so steps translate directly into
+      # tokens in policy.max_total_sequence_length.
+      max_steps: ${oc.env:AGENT_MAX_STEPS,20}
+      return_transitions: false
+      # Set true if episodes overflow max_total_sequence_length: drops the text
+      # of superseded environment-state messages from the prompt while keeping
+      # the tool-call/response structure intact.
+      collapse_old_env_states: false
+      # Soft cap on prompt length. Keep <= policy.max_total_sequence_length in
+      # the NeMo RL config.
+      max_total_sequence_length: 32768
+      resources_server:
+        type: resources_servers
+        name: hypotest_resources_server
+      model_server:
+        type: responses_api_models
+        name: policy_model
