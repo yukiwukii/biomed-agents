@@ -8,7 +8,7 @@ the new judge, plus ``old_score``/``score``). Criteria are aligned by position
 score changed are highlighted.
 
 Usage:
-    python3 scripts/inspect_judge_diff.py \
+    python3 scripts/eval/inspect_judge_diff.py \
         --judge benchmark_results/judge_output.regrade.anthropic_claude-sonnet-4-6.json \
         --out benchmark_results/judge_diff.anthropic_claude-sonnet-4-6.html
 """

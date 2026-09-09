@@ -19,7 +19,7 @@ Usage:
     python inspect_fork.py [forks_dir] [--html out.html]
 
     # the all-feedback ablation run:
-    python scripts/inspect_fork.py archive/fork_trial/forks-allfb-sonnet \
+    python scripts/fork/inspect_fork.py archive/fork_trial/forks-allfb-sonnet \
         --html forks-allfb-sonnet.html
 
 Defaults: forks_dir=forks, out=forks.html
@@ -121,7 +121,7 @@ _FORK_CSS = """
 .frozen-note b { color: #cbd5e1; }
 """
 
-# Round dirs written by scripts/fork_trajectory.py: `<root>-r<N>_cell<C>`.
+# Round dirs written by scripts/fork/fork_trajectory.py: `<root>-r<N>_cell<C>`.
 _ROUND_RE = re.compile(r"^(?P<root>.+)-r(?P<round>\d+)_cell(?P<cell>\d+)$")
 # Pre-Patch-27 single forks: `<root>-fork_cell<C>`. Rendered as a one-round chain.
 _LEGACY_RE = re.compile(r"^(?P<root>.+)-fork_cell(?P<cell>\d+)$")

@@ -2,8 +2,8 @@
 """Inspect proposer (hypothesis-generation) trajectories.
 
 Reads the per-capsule JSON files written by
-``scripts/generate_hypotheses.py --save-traj DIR`` and renders them the way
-``scripts/inspect_trajectory.py`` renders benchmark rollouts: a step-by-step view
+``proposer/generate_hypotheses.py --save-traj DIR`` and renders them the way
+``scripts/eval/inspect_trajectory.py`` renders benchmark rollouts: a step-by-step view
 of what the proposer did. For ``--mode agent`` that means each data-exploration
 cell (code → output); for either mode it shows the final generation prompt (with
 ``--prompt``), the proposed hypotheses, and the dataset's expert hypothesis for
@@ -11,20 +11,20 @@ side-by-side comparison.
 
 Usage:
     # list every trajectory in a dir
-    .venv/bin/python scripts/inspect_proposer_traj.py proposer/ --list
+    .venv/bin/python proposer/inspect_proposer_traj.py proposer/ --list
 
     # show one (by index or id substring)
-    .venv/bin/python scripts/inspect_proposer_traj.py proposer/ --idx 0
-    .venv/bin/python scripts/inspect_proposer_traj.py proposer/ --only 0f14ffa7
+    .venv/bin/python proposer/inspect_proposer_traj.py proposer/ --idx 0
+    .venv/bin/python proposer/inspect_proposer_traj.py proposer/ --only 0f14ffa7
 
     # also print the full generation prompt that produced the hypotheses
-    .venv/bin/python scripts/inspect_proposer_traj.py proposer/ --only 0f14ffa7 --prompt
+    .venv/bin/python proposer/inspect_proposer_traj.py proposer/ --only 0f14ffa7 --prompt
 
     # a single trajectory file works too
-    .venv/bin/python scripts/inspect_proposer_traj.py proposer/0f14ffa7-....json
+    .venv/bin/python proposer/inspect_proposer_traj.py proposer/0f14ffa7-....json
 
     # write a self-contained HTML page (all trajectories, sidebar picker)
-    .venv/bin/python scripts/inspect_proposer_traj.py proposer/ --html proposer.html
+    .venv/bin/python proposer/inspect_proposer_traj.py proposer/ --html proposer.html
 """
 
 from __future__ import annotations

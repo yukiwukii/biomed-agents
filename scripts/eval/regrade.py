@@ -13,16 +13,16 @@ the agent's submitted answer (the ``iterN`` dir suffix does NOT line up with the
 ``repN`` trajectory order because replications run concurrently).
 
 Usage:
-    conda run -n bixbench python3 scripts/regrade.py \
+    conda run -n bixbench python3 scripts/eval/regrade.py \
         --model anthropic/claude-opus-4-8
 
     # OpenAI-compatible / local vLLM endpoint:
-    conda run -n bixbench python3 scripts/regrade.py \
+    conda run -n bixbench python3 scripts/eval/regrade.py \
         --model openai/Qwen/Qwen3.6-27B \
         --api-base http://localhost:8000/v1 --api-key none
 
     # also write outputs (new rewards json + patched pkl):
-    conda run -n bixbench python3 scripts/regrade.py --model ... --write
+    conda run -n bixbench python3 scripts/eval/regrade.py --model ... --write
 
 Nothing is written unless ``--write`` is passed.
 """

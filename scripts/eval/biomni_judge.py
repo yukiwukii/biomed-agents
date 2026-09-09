@@ -28,15 +28,15 @@ BiomniBench-DA outputs:
 
 Usage:
     # Re-grade a hypotest run with the biomni method (dry run — prints a table):
-    .venv/bin/python scripts/biomni_judge.py --model openai/gpt-5 --results results/
+    .venv/bin/python scripts/eval/biomni_judge.py --model openai/gpt-5 --results results/
 
     # Local/vLLM OpenAI-compatible endpoint, and write per-dir + summary outputs:
-    .venv/bin/python scripts/biomni_judge.py \
+    .venv/bin/python scripts/eval/biomni_judge.py \
         --model openai/Qwen/Qwen3.6-27B --api-base http://localhost:8000/v1 \
         --api-key none --results results/ --write
 
     # Native BiomniBench-DA single task:
-    .venv/bin/python scripts/biomni_judge.py --model openai/gpt-5 \
+    .venv/bin/python scripts/eval/biomni_judge.py --model openai/gpt-5 \
         --rubric da-1-3/tests/rubric.txt --trace trace.md --answer answer.txt
 """
 

@@ -17,12 +17,12 @@ are the same model). It is a different, earlier notebook than the forked one
 being graded; it is framed as context only. Run the main regrade first.
 
 Usage:
-    conda run -n bixbench python3 scripts/regrade_forks.py \
+    conda run -n bixbench python3 scripts/fork/regrade_forks.py \
         --model anthropic/claude-sonnet-4-6 --temperature 0 --write
 
     # feed this model's own evaluation of the pre-fork parent as a reference point
     # (requires the main regrade's judge_output.regrade.<model>.json to exist):
-    conda run -n bixbench python3 scripts/regrade_forks.py \
+    conda run -n bixbench python3 scripts/fork/regrade_forks.py \
         --model anthropic/claude-sonnet-4-6 --temperature 0 --write --with-prior-judgment
 """
 
@@ -127,7 +127,7 @@ async def main() -> None:
         if not pj_path.exists():
             raise SystemExit(
                 f"--with-prior-judgment needs the main regrade's judge output at {pj_path} "
-                "(run scripts/regrade.py with the same --model first)."
+                "(run scripts/eval/regrade.py with the same --model first)."
             )
         parent_judgment = json.loads(pj_path.read_text())
         have = sum(1 for _n, _p, _d, src in forks if src in parent_judgment)

@@ -71,18 +71,18 @@ Usage:
     # 1. clone the repo and unpack the 44 GB scdata tarball as per its README:
     #      cat scdata.part_* > scdata.tar.zst && tar -I zstd -xf scdata.tar.zst
     # 2. convert (open-ended, full split):
-    .venv/bin/python scripts/convert_heurekabench.py \
+    .venv/bin/python scripts/data/convert_heurekabench.py \
         --repo-dir /path/to/HeurekaBench \
         --q-type oe --split full \
         --out-jsonl problems/problems_heurekabench_oe.jsonl \
         --capsule-dir capsules_heurekabench/
 
     # multiple-choice, lite split, one task per sub-question:
-    .venv/bin/python scripts/convert_heurekabench.py --repo-dir ... \
+    .venv/bin/python scripts/data/convert_heurekabench.py --repo-dir ... \
         --q-type mcq --split lite --granularity question
 
     # generate the jsonl before the 44 GB download lands (capsules will be empty):
-    .venv/bin/python scripts/convert_heurekabench.py --repo-dir ... --allow-missing-data
+    .venv/bin/python scripts/data/convert_heurekabench.py --repo-dir ... --allow-missing-data
 """
 
 from __future__ import annotations

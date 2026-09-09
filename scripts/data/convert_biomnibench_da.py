@@ -46,14 +46,14 @@ mechanics don't apply and would only distract the agent into writing files that 
 never read.
 
 Usage:
-    .venv/bin/python scripts/convert_biomnibench_da.py \
+    .venv/bin/python scripts/data/convert_biomnibench_da.py \
         --out-jsonl problems_biomnibench_da.jsonl --capsule-dir capsules_biomnibench_da/
 
     # re-use an already-downloaded snapshot instead of hitting the Hub again:
-    .venv/bin/python scripts/convert_biomnibench_da.py --snapshot-dir /path/to/snapshot
+    .venv/bin/python scripts/data/convert_biomnibench_da.py --snapshot-dir /path/to/snapshot
 
     # only convert a subset while iterating:
-    .venv/bin/python scripts/convert_biomnibench_da.py --limit 3
+    .venv/bin/python scripts/data/convert_biomnibench_da.py --limit 3
 """
 
 from __future__ import annotations

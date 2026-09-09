@@ -30,7 +30,7 @@ Trajectories (explore cells + generation prompt + hypotheses) are saved per caps
 under ``proposer/<mode>/`` by default — i.e. ``proposer/preview/`` or
 ``proposer/agent/`` — so the two modes stay separated for comparison
 (``--save-traj DIR`` to change the base, ``--no-save-traj`` to disable). View them
-with ``scripts/inspect_proposer_traj.py``.
+with ``proposer/inspect_proposer_traj.py``.
 
 IMPORTANT — leakage control: capsules often ship the *original analysis
 notebook* (``.ipynb``) and R result objects (``.rds``), which reveal the paper's
@@ -60,21 +60,21 @@ a *different* ``--mode`` than the hypotheses via ``--rubric-mode`` — e.g. chea
 ``preview`` hypotheses but an ``agent``-explored rubric grounded in the real data.
 
 Usage:
-    .venv/bin/python scripts/generate_hypotheses.py \
+    .venv/bin/python proposer/generate_hypotheses.py \
         --capsules-dir capsules/ --out hypotheses_generated.json --n 3
 
     # also generate a grading rubric per hypothesis:
-    .venv/bin/python scripts/generate_hypotheses.py --n 3 --rubrics
+    .venv/bin/python proposer/generate_hypotheses.py --n 3 --rubrics
 
     # preview hypotheses, but let the rubric explore the data live (agent):
-    .venv/bin/python scripts/generate_hypotheses.py --n 3 --rubrics --mode preview --rubric-mode agent --limit 15
+    .venv/bin/python proposer/generate_hypotheses.py --n 3 --rubrics --mode preview --rubric-mode agent --limit 15
 
     # limit / target specific capsules while iterating:
-    .venv/bin/python scripts/generate_hypotheses.py --limit 5
-    .venv/bin/python scripts/generate_hypotheses.py --only 0923d260
+    .venv/bin/python proposer/generate_hypotheses.py --limit 5
+    .venv/bin/python proposer/generate_hypotheses.py --only 0923d260
 
     # print the exact prompt(s) that would be sent for one capsule, then exit:
-    .venv/bin/python scripts/generate_hypotheses.py --only 0923d260 --dry-run --rubrics
+    .venv/bin/python proposer/generate_hypotheses.py --only 0923d260 --dry-run --rubrics
 """
 
 from __future__ import annotations
@@ -963,7 +963,7 @@ def write_trajectory(
 
     Captures the agent's exploration cells (agent mode), the exact generation
     prompt fed to the model, and the proposed hypotheses. Rendered by
-    ``scripts/inspect_proposer_traj.py``.
+    ``proposer/inspect_proposer_traj.py``.
     """
     save_dir.mkdir(parents=True, exist_ok=True)
     traj = {

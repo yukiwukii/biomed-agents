@@ -24,9 +24,9 @@ IN_GITHUB_ACTIONS: bool = os.getenv("GITHUB_ACTIONS") == "true"
 # Tests that reach the network or a paid API. A fresh clone has neither, and a
 # fork PR cannot see repository secrets, so these skip rather than fail -- an
 # outside contributor should get a green run without credentials.
-requires_openai = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
-)
+requires_openai = pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+
+
 def skip_if_hub_unreachable() -> None:
     """Skip the calling test when huggingface.co cannot be reached.
 

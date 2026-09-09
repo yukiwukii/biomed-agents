@@ -83,11 +83,11 @@ doesn't support. Output becomes:
     }
 
 Usage:
-    .venv/bin/python scripts/generate_insights.py                        # first 10 capsules
-    .venv/bin/python scripts/generate_insights.py --n-capsules 10 --explore-steps 5
-    .venv/bin/python scripts/generate_insights.py --only 0923d260 --only 0f14ffa7
-    .venv/bin/python scripts/generate_insights.py --dry-run             # print prompts, no LLM/kernel
-    .venv/bin/python scripts/generate_insights.py --classification      # classify studies instead of grouping files
+    .venv/bin/python proposer/generate_insights.py                        # first 10 capsules
+    .venv/bin/python proposer/generate_insights.py --n-capsules 10 --explore-steps 5
+    .venv/bin/python proposer/generate_insights.py --only 0923d260 --only 0f14ffa7
+    .venv/bin/python proposer/generate_insights.py --dry-run             # print prompts, no LLM/kernel
+    .venv/bin/python proposer/generate_insights.py --classification      # classify studies instead of grouping files
 """
 
 from __future__ import annotations

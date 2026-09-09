@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ABLATION: fork once, injecting feedback from *every* criterion — not just the driving ones.
 
-The baseline (``scripts/fork_trajectory.py``) forks at the earliest per-criterion
+The baseline (``scripts/fork/fork_trajectory.py``) forks at the earliest per-criterion
 ``first_wrong_step`` and injects the ``feedback`` of only the criteria sitting at
 *that* cell. This variant changes exactly one thing: the injected note carries the
 feedback from **every** criterion that has any. The fork *cell* is untouched.
@@ -46,7 +46,7 @@ the same ``--pkl`` / ``--results``.
 Usage — identical to the baseline, which owns every CLI flag:
 
     source .venv/bin/activate && set -a && source .env && set +a
-    python scripts/fork_trajectory_allfb.py \\
+    python scripts/fork/fork_trajectory_allfb.py \\
         --server-config server.fork.yaml \\
         --benchmark-config benchmark.fork.gen.yaml \\
         --pkl archive/sonnet-judge/benchmark_results-hypotest-wo-protocol/trajectories.pkl \\

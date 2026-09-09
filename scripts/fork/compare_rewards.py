@@ -1,4 +1,4 @@
-"""Compare pass@k and avg@k between a benchmark run and the forks taken from it.
+r"""Compare pass@k and avg@k between a benchmark run and the forks taken from it.
 
 This is the headline fork metric: how much of the original failure was
 recoverable once the agent was rewound to its first wrong step and handed the
@@ -25,7 +25,7 @@ from pathlib import Path
 
 
 def load_rewards(rewards_path: Path) -> dict[str, float]:
-    with open(rewards_path) as f:
+    with open(rewards_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -61,7 +61,7 @@ def merge_fork_rewards(
     fork_summary_path: Path,
 ) -> dict[str, float]:
     """Build a merged rewards dict using new_score for forked trajectories."""
-    with open(fork_summary_path) as f:
+    with open(fork_summary_path, encoding="utf-8") as f:
         fork_data = json.load(f)
 
     # Collect new_scores per trajectory (multiple forks possible)

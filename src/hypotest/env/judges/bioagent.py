@@ -5,7 +5,7 @@ bioagent-bench ships no rubric. Its reward lives in a second repo
 table to ``results/``, a per-task Python function compares it to the truth files, and the reward
 is ``float(deterministic_match)`` — binary, no partial credit. This module transcribes those
 checks. The pass conditions are recorded verbatim upstream-side in
-``scripts/convert_bioagent_bench.py::RESULT_RULES`` and per problem at
+``scripts/data/convert_bioagent_bench.py::RESULT_RULES`` and per problem at
 ``metadata["upstream_result_rule"]``; each check here implements exactly one of them.
 
 Registered with ``needs_model=False``, so a run over this dataset needs no rubric model at all.

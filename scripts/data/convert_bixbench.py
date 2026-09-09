@@ -64,13 +64,13 @@ Faithfulness notes
 
 Usage:
     # write the converted jsonl (capsules must already be extracted next to it):
-    .venv/bin/python scripts/convert_bixbench.py
+    .venv/bin/python scripts/data/convert_bixbench.py
 
     # inspect without writing anything:
-    .venv/bin/python scripts/convert_bixbench.py --dry-run
+    .venv/bin/python scripts/data/convert_bixbench.py --dry-run
 
     # a single capsule or question, e.g. to try one end to end:
-    .venv/bin/python scripts/convert_bixbench.py --only bix-1 --out-jsonl /tmp/one.jsonl
+    .venv/bin/python scripts/data/convert_bixbench.py --only bix-1 --out-jsonl /tmp/one.jsonl
 """
 
 from __future__ import annotations

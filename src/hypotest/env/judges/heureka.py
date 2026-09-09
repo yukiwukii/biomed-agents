@@ -12,7 +12,7 @@ by fact.
 
 Note this deviates from the rating a single-call G-Eval judge would emit: bands are now
 mechanical, so the same labels always give the same number. It also deviates from upstream
-in the two ways ``scripts/convert_heurekabench.py`` already documents — the judge sees the
+in the two ways ``scripts/data/convert_heurekabench.py`` already documents — the judge sees the
 whole notebook, and reward is normalized to [0, 1].
 
 Only the open-ended split is covered. HeurekaBench's MCQ split has no judge here; MCQ

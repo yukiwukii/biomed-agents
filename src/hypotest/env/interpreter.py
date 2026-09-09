@@ -309,12 +309,9 @@ class Interpreter:
             current_pyver = f"python{sys.version_info.major}.{sys.version_info.minor}"
             if "PYTHONPATH" in env:
                 env["PYTHONPATH"] = os.pathsep.join(
-                    p for p in env["PYTHONPATH"].split(os.pathsep)
-                    if not any(
-                        f"python3.{minor}" in p
-                        for minor in range(20)
-                        if f"python3.{minor}" != current_pyver
-                    )
+                    p
+                    for p in env["PYTHONPATH"].split(os.pathsep)
+                    if not any(f"python3.{minor}" in p for minor in range(20) if f"python3.{minor}" != current_pyver)
                 )
             merged = env | self.extra_envs
             merged = self._setup_pip_env(merged)

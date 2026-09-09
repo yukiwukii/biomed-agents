@@ -3,7 +3,7 @@
 Python maps the chosen letter to that criterion's rubric-defined point value
 (``Levels: A=X B=Y C=0``) and sums, which removes judge arithmetic noise. The
 letter→points mapping lives in ``env/biomni_judge.py`` so the offline re-grader
-(``scripts/biomni_judge.py``) shares it.
+(``scripts/eval/biomni_judge.py``) shares it.
 """
 
 from __future__ import annotations

@@ -193,7 +193,7 @@ INCORRECT_MSG = "Incorrect answer."
 # first_wrong_step is DISABLED for now. To restore: re-insert the bullet below
 # between the "relevant_steps" and "feedback" bullets, revert the "feedback"
 # bullet to anchor on it (see git history), and uncomment the matching field on
-# interpreter_env.{CriterionScore,CriterionLevelScore} and scripts/regrade.py:
+# interpreter_env.{CriterionScore,CriterionLevelScore} and scripts/eval/regrade.py:
 #    - "first_wrong_step": the earliest entry in "relevant_steps" with "correct": false — i.e. the index of the
 #      first notebook cell where the agent made an error that caused this criterion to lose points — or null if
 #      this criterion received full marks. This should be the earliest cell where the procedure went wrong for

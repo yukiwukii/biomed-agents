@@ -9,7 +9,7 @@ import time
 from collections import Counter
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Any, Literal, Self, cast
+from typing import Any, Self, cast
 from uuid import UUID
 
 import yaml
@@ -97,7 +97,7 @@ async def sweep_idle_envs(
                 for env_id, env in stale:
                     try:
                         await asyncio.wait_for(env.close(), timeout=ENV_SWEEP_CLOSE_TIMEOUT)
-                    except Exception as exc:  # noqa: BLE001
+                    except Exception as exc:
                         # Untrack regardless. As aviary's own /close notes, a
                         # failed close means the env is probably already broken --
                         # keeping it tracked leaks it forever, which is the exact
@@ -107,7 +107,7 @@ async def sweep_idle_envs(
                         server.envs.pop(env_id, None)
             if stale:
                 print(f"[env-sweeper] closed {len(stale)} idle env(s); {len(server.envs)} still tracked", flush=True)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"[env-sweeper] sweep failed, continuing: {exc!r}", flush=True)
 
 
@@ -166,7 +166,9 @@ class DatasetConfig(BaseModel):
             problems = self._load_from_hf()
         else:
             assert self.problem_jsonl is not None
-            problems = [ProblemInstance.model_validate_json(line) for line in self.problem_jsonl.read_text().splitlines()]
+            problems = [
+                ProblemInstance.model_validate_json(line) for line in self.problem_jsonl.read_text().splitlines()
+            ]
         return problems[: self.max_problems]
 
     def _load_from_hf(self) -> list[ProblemInstance]:
@@ -194,7 +196,7 @@ class Dataset(TaskDataset[InterpreterEnv]):
         if not capsule_path.exists():
             capsule_path = self.config.capsule_dir / f"CapsuleData-{problem.id}"
         # [PATCH 24] The answer key for deterministic judges, staged by the converter as a sibling
-        # of the capsules (scripts/stage_bioagent_capsules.py writes `_truth/<task_id>/`). Passed
+        # of the capsules (scripts/data/stage_bioagent_capsules.py writes `_truth/<task_id>/`). Passed
         # to the env but never copied into the workspace, so the agent cannot read it. Benchmarks
         # without truth files simply have no `_truth/` dir and get None.
         truth_path = self.config.capsule_dir / TRUTH_DIR_NAME / problem.input_data_path
@@ -271,7 +273,7 @@ async def launch_server():
         import litellm.litellm_core_utils.logging_callback_manager  # noqa: F401
 
         update_litellm_max_callbacks()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     parser = argparse.ArgumentParser()

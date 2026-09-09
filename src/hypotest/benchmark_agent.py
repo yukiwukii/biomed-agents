@@ -24,6 +24,7 @@ from tqdm.asyncio import tqdm
 
 from hypotest.dataset_server import DEFAULT_SERVER_PORT
 
+
 # PATCH 2: HuggingFace Inference API only accepts tool_choice="auto" or "none".
 # ldp's SimpleAgent defaults to tool_choice="required", which causes a 400 error.
 # HFSimpleAgent overrides get_asv to pass tool_choice="auto" instead.
@@ -44,9 +45,7 @@ class HFSimpleAgent(SimpleAgent):
         )
         result = cast(
             "OpResult[ToolRequestMessage]",
-            await self._llm_call_op(
-                await self._config_op(), msgs=messages, tools=next_state.tools, tool_choice="auto"
-            ),
+            await self._llm_call_op(await self._config_op(), msgs=messages, tools=next_state.tools, tool_choice="auto"),
         )
         next_state.messages = [*next_state.messages, result.value]
         return result, next_state, 0.0
@@ -116,7 +115,7 @@ def _reasoning_from_ctx(action) -> str:
         return ""
     try:
         # Raises ValueError when the compute graph isn't available for this OpResult.
-        result = action._get_from_ctx("result", default=None)  # noqa: SLF001
+        result = action._get_from_ctx("result", default=None)
     except (ValueError, KeyError):
         return ""
     reasoning = getattr(result, "reasoning_content", None)
@@ -156,9 +155,7 @@ class ThinkingLogger(Callback):
         self.data: dict[str, list[dict]] = {}
         self.lock = asyncio.Lock()
 
-    async def after_transition(
-        self, traj_id: str, agent: Agent, env: Environment, transition: Transition
-    ) -> None:
+    async def after_transition(self, traj_id: str, agent: Agent, env: Environment, transition: Transition) -> None:
         thinking = extract_thinking(transition.action)
         if not thinking:
             return
@@ -167,9 +164,7 @@ class ThinkingLogger(Callback):
         except LookupError:
             label = traj_id
         async with self.lock:
-            self.data.setdefault(label, []).append(
-                {"step": transition.timestep, "thinking": thinking}
-            )
+            self.data.setdefault(label, []).append({"step": transition.timestep, "thinking": thinking})
             self.path.write_text(json.dumps(self.data, indent=2))
 
 
@@ -188,7 +183,7 @@ async def main() -> None:
         import litellm.litellm_core_utils.logging_callback_manager  # noqa: F401
 
         update_litellm_max_callbacks()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     # Silence cosmetic pydantic serializer warnings from litellm's cost tracker. It runs
@@ -227,10 +222,7 @@ async def main() -> None:
     k = config.num_replications
     n_problems = len(client)
     t0 = time.monotonic()
-    results = await tqdm.gather(
-        *[rollout(i, r) for i in range(n_problems) for r in range(k)],
-        ncols=0, desc="Rollouts"
-    )
+    results = await tqdm.gather(*[rollout(i, r) for i in range(n_problems) for r in range(k)], ncols=0, desc="Rollouts")
     elapsed = time.monotonic() - t0
     trajectories, rewards = zip(*results, strict=True)
 

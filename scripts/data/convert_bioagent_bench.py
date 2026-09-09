@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convert bioagent-bench into hypotest's ProblemInstance jsonl.
 
-Run ``scripts/stage_bioagent_capsules.py`` first — this script reads what that staged:
+Run ``scripts/data/stage_bioagent_capsules.py`` first — this script reads what that staged:
 
     capsules/bioagent-bench/<task_id>/data|reference/   the agent's inputs
     capsules/bioagent-bench/_truth/<task_id>/           the answer key (never shipped to the agent)
@@ -61,9 +61,9 @@ its truth VCF is not staged, ``hap.py`` must be on PATH, and an F1 is continuous
 is binary (it would need a threshold, or a float ``JudgeResult.raw_score``).
 
 Usage:
-    .venv/bin/python scripts/convert_bioagent_bench.py
-    .venv/bin/python scripts/convert_bioagent_bench.py --tasks cystic-fibrosis viral-metagenomics
-    .venv/bin/python scripts/convert_bioagent_bench.py --print-rubric cystic-fibrosis
+    .venv/bin/python scripts/data/convert_bioagent_bench.py
+    .venv/bin/python scripts/data/convert_bioagent_bench.py --tasks cystic-fibrosis viral-metagenomics
+    .venv/bin/python scripts/data/convert_bioagent_bench.py --print-rubric cystic-fibrosis
 """
 
 from __future__ import annotations
@@ -585,7 +585,7 @@ def main() -> None:
     capsule_dir: Path = args.capsule_dir
     manifest_path = capsule_dir / "manifest.json"
     if not manifest_path.exists():
-        sys.exit(f"missing {manifest_path} — run scripts/stage_bioagent_capsules.py first")
+        sys.exit(f"missing {manifest_path} — run scripts/data/stage_bioagent_capsules.py first")
     manifest = json.loads(manifest_path.read_text())["tasks"]
 
     tasks = [t for t in load_env_metadata(args.metadata) if t["task_id"] not in SKIP_TASKS]

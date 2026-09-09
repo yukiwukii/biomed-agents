@@ -49,8 +49,8 @@ A trajectory is skipped, not failed, when there is nothing to fork:
 submitting, so there is no new grade), or ``submitted``.
 
 Output layout is **flat** — every fork is a top-level directory under
-``--out-dir``, which is how ``scripts/inspect_fork.py`` and
-``scripts/regrade_forks.py`` discover them::
+``--out-dir``, which is how ``scripts/fork/inspect_fork.py`` and
+``scripts/fork/regrade_forks.py`` discover them::
 
     forks/task_0_rep0-fork_cell4/   trajectories.pkl  fork_info.json  <id>-iter0/score_info.json
     forks/task_1_rep2-fork_cell11/  …
@@ -68,16 +68,16 @@ Usage:
     source .venv/bin/activate
 
     # fork ALL trajectories in the pkl:
-    python scripts/fork_trajectory.py \
+    python scripts/fork/fork_trajectory.py \
         --server-config server.yaml \
         --benchmark-config benchmark.yaml \
         --out-dir forks/
 
     # fork a single trajectory:
-    python scripts/fork_trajectory.py --traj-id task_0_rep0 ...
+    python scripts/fork/fork_trajectory.py --traj-id task_0_rep0 ...
 
     # override the fork point (single trajectory only):
-    python scripts/fork_trajectory.py --traj-id task_0_rep0 --first-wrong-step 7 ...
+    python scripts/fork/fork_trajectory.py --traj-id task_0_rep0 --first-wrong-step 7 ...
 
 This runs the real environment (kernel + capsule data) and makes live LLM calls
 for both the policy and the rubric model, so run it with the same environment as

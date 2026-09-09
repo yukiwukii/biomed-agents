@@ -51,13 +51,13 @@ Faithfulness notes
 Usage:
     # 1. clone the dataset (requires accepting its gated terms) into capsules/biomysterybench/
     # 2. write the jsonl only (fast; capsules must already exist or be extracted later):
-    .venv/bin/python scripts/convert_biomysterybench.py
+    .venv/bin/python scripts/data/convert_biomysterybench.py
 
     # extract data/<id>.zip -> capsules/biomysterybench/<id>/ as well (~145 GB):
-    .venv/bin/python scripts/convert_biomysterybench.py --extract
+    .venv/bin/python scripts/data/convert_biomysterybench.py --extract
 
     # a single problem, e.g. to try one end to end:
-    .venv/bin/python scripts/convert_biomysterybench.py --extract --only hb002
+    .venv/bin/python scripts/data/convert_biomysterybench.py --extract --only hb002
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ rubric, each rubric criterion classified into one or more of six grading
 dimensions via an LLM call (one call per rubric, all its criteria classified together).
 
 Usage:
-    .venv/bin/python scripts/classify_original_rubrics.py
+    .venv/bin/python proposer/classify_original_rubrics.py
 """
 import argparse
 import asyncio

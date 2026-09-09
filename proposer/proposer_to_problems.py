@@ -4,7 +4,7 @@ One JSONL line per (capsule, hypothesis-rubric). Uses task_style="question" so t
 open-ended hypotest judge grades against the rubric with no accept/reject framing.
 
 Usage:
-    .venv/bin/python scripts/proposer_to_problems.py \
+    .venv/bin/python proposer/proposer_to_problems.py \
         proposer/preview/hypotheses_generated.json problems_proposer.jsonl \
         --capsule-dir capsules
 """

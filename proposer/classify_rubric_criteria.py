@@ -3,7 +3,7 @@ into one or more of six grading dimensions via an LLM call, adding a `categories
 list field in place. One model call per rubric (all its criteria classified together).
 
 Usage:
-    .venv/bin/python scripts/classify_rubric_criteria.py
+    .venv/bin/python proposer/classify_rubric_criteria.py
 """
 import argparse
 import asyncio

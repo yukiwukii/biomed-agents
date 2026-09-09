@@ -44,16 +44,15 @@ if os.path.isdir(nested):
 
 # Rewrite input_data_path to the on-disk directory name (drop .zip)
 print("[3/3] rewriting input_data_path in jsonl", flush=True)
-rows = [json.loads(line) for line in open(JSONL)]
+rows = [json.loads(line) for line in open(JSONL, encoding="utf-8")]
 missing = 0
 for r in rows:
     cap = r["input_data_path"]
-    if cap.endswith(".zip"):
-        cap = cap[:-4]
+    cap = cap.removesuffix(".zip")
     r["input_data_path"] = cap
     if not os.path.isdir(os.path.join(OUT, cap)):
         missing += 1
-with open(JSONL, "w") as f:
+with open(JSONL, "w", encoding="utf-8") as f:
     for r in rows:
         f.write(json.dumps(r) + "\n")
 

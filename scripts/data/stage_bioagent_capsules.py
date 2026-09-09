@@ -37,16 +37,16 @@ truncated archive that looks complete.
 
 Usage:
     # everything (~33 GB+ over the wire, smallest tasks first)
-    .venv/bin/python scripts/stage_bioagent_capsules.py
+    .venv/bin/python scripts/data/stage_bioagent_capsules.py
 
     # just the three cheap tasks, to get a pipeline working end to end
-    .venv/bin/python scripts/stage_bioagent_capsules.py --tasks transcript-quant single-cell alzheimer-mouse
+    .venv/bin/python scripts/data/stage_bioagent_capsules.py --tasks transcript-quant single-cell alzheimer-mouse
 
     # see the plan and per-file sizes without downloading
-    .venv/bin/python scripts/stage_bioagent_capsules.py --dry-run
+    .venv/bin/python scripts/data/stage_bioagent_capsules.py --dry-run
 
     # skip the 12 GB kraken2 DB and friends
-    .venv/bin/python scripts/stage_bioagent_capsules.py --skip-reference
+    .venv/bin/python scripts/data/stage_bioagent_capsules.py --skip-reference
 """
 
 from __future__ import annotations

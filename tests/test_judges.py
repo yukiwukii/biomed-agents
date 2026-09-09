@@ -351,7 +351,7 @@ class TestBiomysteryJudge:
     async def test_metadata_keeps_both_calls_and_the_split(self) -> None:
         ctx = JudgeContext(problem=self.problem(), notebook="nb", solution="a")
         result = await run_judge("biomystery", ctx, self.stub(correct=True, cheated=False))
-        # Unprefixed keys keep scripts/regrade.py working; the second call is prefixed.
+        # Unprefixed keys keep scripts/eval/regrade.py working; the second call is prefixed.
         assert {"prompt", "response", "cheat_prompt", "cheat_response"} <= set(result.metadata)
         assert result.metadata["human_solvable"] == "yes"
         assert result.metadata["extracted_answer"] == "Bacillus licheniformis"
@@ -514,7 +514,7 @@ class TestBixbenchJudge:
         ctx = JudgeContext(problem=self.problem(eval_mode="llm_verifier"), notebook="nb", solution="x")
         result = await run_judge("bixbench", ctx, model)
 
-        # Unprefixed keys keep scripts/regrade.py working; the second call is prefixed.
+        # Unprefixed keys keep scripts/eval/regrade.py working; the second call is prefixed.
         assert {"prompt", "response", "equiv_prompt", "equiv_response"} <= set(result.metadata)
         assert result.metadata["ideal"] == "0.0002"
         assert result.metadata["question_id"] == "bix-1-q1"

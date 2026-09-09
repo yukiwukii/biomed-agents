@@ -266,6 +266,6 @@ kill "${LOGS_PID:-}" 2>/dev/null || true
 echo "==> Fork finished. Output under ${REMOTE_DIR}/${OUT_DIR}"
 echo "    rollup    : ${OUT_DIR}fork_summary.json  (forked / skipped / failed)"
 echo "    per fork  : ${OUT_DIR}<traj_id>-fork_cell<K>/fork_info.json"
-echo "    view      : python scripts/inspect_fork.py ${OUT_DIR} --html forks.html"
+echo "    view      : python scripts/fork/inspect_fork.py ${OUT_DIR} --html forks.html"
 echo "    resume    : re-run this script — --skip-existing keeps finished forks"
 # cleanup runs on EXIT

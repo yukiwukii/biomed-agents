@@ -19,8 +19,8 @@ Adding a benchmark means adding a module next to this one::
 an edit, and there is no dispatch table to extend.
 
 This package deliberately depends only on pydantic/lmi and the pure-python rubric
-parsers, never on ``interpreter_env`` — so offline re-graders (``scripts/regrade.py``,
-``scripts/biomni_judge.py``) can import the real judges instead of re-implementing
+parsers, never on ``interpreter_env`` — so offline re-graders (``scripts/eval/regrade.py``,
+``scripts/eval/biomni_judge.py``) can import the real judges instead of re-implementing
 them.
 """
 
@@ -121,7 +121,7 @@ async def call_json(
     Returns the parsed model plus a metadata dict carrying the rendered prompt, the raw
     response text, any reasoning tokens, and any chain-of-thought emitted before the JSON.
     ``key`` prefixes those metadata keys, for judges that make more than one call (the
-    unprefixed names are what ``score_info.json`` and ``scripts/regrade.py`` expect).
+    unprefixed names are what ``score_info.json`` and ``scripts/eval/regrade.py`` expect).
     """
     resp = await model.call_single(prompt, output_type=schema, timeout=timeout)
     if not resp.text:
@@ -196,8 +196,8 @@ def derive_first_wrong_step(criteria: list[dict], rubric: str | None = None) -> 
     ``"correct": false``, or ``None`` when every relevant step was correct. Note the
     prompt now tells the judge to mark a step correct if its error was repaired by a
     later cell, so this only ever points at a problem that survives to the end of the
-    notebook. Downstream consumers (``scripts/fork_trajectory.py``,
-    ``scripts/inspect_trajectory.py``) read the key from score_info.json unchanged.
+    notebook. Downstream consumers (``scripts/fork/fork_trajectory.py``,
+    ``scripts/eval/inspect_trajectory.py``) read the key from score_info.json unchanged.
 
     When ``rubric`` is given, a criterion awarded full marks gets ``None`` regardless of
     its relevant_steps — restoring the "null if this criterion received full marks" rule
