@@ -321,7 +321,7 @@ async def fork_round(
     # — distinct from submitting and scoring below full marks.
     if not submitted:
         stop_reason = "truncated"
-    elif new_score is not None and new_score >= 1.0:
+    elif new_score >= 1.0:
         stop_reason = "full_reward"
     else:
         stop_reason = "submitted"

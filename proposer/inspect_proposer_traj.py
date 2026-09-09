@@ -176,7 +176,8 @@ def list_trajectories(trajs: list[dict[str, Any]]) -> None:
 import html as _html  # noqa: E402
 
 
-def _h(text: str) -> str:
+def _h(text: object) -> str:
+    """HTML-escape. Accepts any value; callers pass values straight from parsed JSON."""
     return _html.escape(str(text))
 
 

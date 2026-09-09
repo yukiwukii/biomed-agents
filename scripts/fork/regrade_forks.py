@@ -99,6 +99,11 @@ async def main() -> None:
     ap.add_argument("--api-base", default=None)
     ap.add_argument("--api-key", default=None)
     ap.add_argument("--temperature", type=float, default=None)
+    ap.add_argument(
+        "--reasoning-effort",
+        default="high",
+        help="Reasoning effort for the rubric model, matching the benchmark judge (default: high)",
+    )
     ap.add_argument("--forks", type=Path, default=ROOT / "forks")
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--no-normalize", action="store_true")
@@ -141,7 +146,7 @@ async def main() -> None:
         have = sum(1 for _n, _p, _d, src in forks if src in parent_judgment)
         print(f"Parent (pre-fork) evaluations from {pj_path.name}: available for {have}/{len(forks)} forks")
 
-    model = make_model(args.model, args.api_base, args.api_key, args.temperature)
+    model = make_model(args.model, args.api_base, args.api_key, args.temperature, args.reasoning_effort)
     sem = asyncio.Semaphore(args.concurrency)
 
     async def run(prompt: str):
@@ -153,7 +158,11 @@ async def main() -> None:
     print(f"  ({skipped} skipped — no pkl/score_info)" if skipped else "")
 
     def build_prompt(d: dict, source: str | None) -> str:
-        parent = parent_judgment.get(source) if args.with_prior_judgment else None
+        # A fork with no fork_info.json has no source_traj_id, so there is no
+        # parent evaluation to attach -- grade it blind.
+        if not args.with_prior_judgment or source is None:
+            return d["prompt"]
+        parent = parent_judgment.get(source)
         if parent is None:
             return d["prompt"]
         return d["prompt"] + prior_judgment_block(source, parent)

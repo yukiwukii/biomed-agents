@@ -96,7 +96,7 @@ def load_trajectories(path: Path):
 def _term_box(title: str, body: str, color: str = "") -> str:
     title_colored = f"{c(color, BOLD)}{title}{c(RESET)}"
     top = f"┌─ {title_colored} {'─' * max(0, WIDTH - 4 - len(title))}┐"
-    lines = []
+    lines: list[str] = []
     for raw_line in body.splitlines():
         clean = strip_ansi(raw_line)
         wrapped = textwrap.wrap(clean, width=WIDTH - 4) if clean.strip() else [""]
@@ -516,13 +516,13 @@ h1 { font-size: 1.1rem; color: #f8fafc; margin-bottom: 4px; }
 """
 
 
-def _h(text: str) -> str:
-    """HTML-escape."""
+def _h(text: object) -> str:
+    """HTML-escape. Accepts any value; callers pass ints and Nones from parsed JSON."""
     return html.escape(str(text))
 
 
 def _html_messages(msgs) -> str:
-    parts = []
+    parts: list[str] = []
     for msg in msgs:
         role = getattr(msg, "role", "?")
         content = strip_ansi(str(getattr(msg, "content", msg) or ""))
@@ -553,10 +553,10 @@ def _derive_first_wrong_steps(criteria: list) -> None:
         # (full marks), which we must not overwrite by re-deriving.
         if not isinstance(c, dict) or "first_wrong_step" in c:
             continue
-        wrong = [
-            s.get("step")
+        wrong: list[int] = [
+            step
             for s in c.get("relevant_steps") or []
-            if isinstance(s, dict) and not s.get("correct", True) and isinstance(s.get("step"), int)
+            if isinstance(s, dict) and not s.get("correct", True) and isinstance(step := s.get("step"), int)
         ]
         c["first_wrong_step"] = min(wrong) if wrong else None
         c["_fws_derived"] = True

@@ -68,7 +68,7 @@ def main() -> int:
 
     # A plan key names a MODULE; checkpoint entries are that module's .weight/.bias.
     modules = {n.rsplit(".", 1)[0] for n in tensors}
-    size = collections.Counter()
+    size: collections.Counter[str] = collections.Counter()
     for n, b in tensors.items():
         size[n.rsplit(".", 1)[0]] += b
 

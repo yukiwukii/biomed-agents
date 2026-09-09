@@ -342,8 +342,8 @@ def rubric_single_cell(truth: Path) -> str:
 
 
 def rubric_transcript_quant(truth: Path) -> str:
-    pairs = [line.split() for line in (truth / "truth.tsv").read_text().splitlines() if line.strip()]
-    pairs = [(t, int(c)) for t, c in pairs]
+    rows = [line.split() for line in (truth / "truth.tsv").read_text().splitlines() if line.strip()]
+    pairs: list[tuple[str, int]] = [(t, int(c)) for t, c in rows]
     total = sum(c for _, c in pairs)
     # Fixed deterministic sample (every Nth of the sorted set) so the rubric is reproducible.
     sample = sorted(pairs)[:: max(len(pairs) // 10, 1)][:10]

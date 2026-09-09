@@ -104,7 +104,7 @@ from pathlib import Path
 # "exact same agentic capabilities". scripts/ is not a package, so add it to sys.path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from typing import Literal
+from typing import Any, Literal
 
 from generate_hypotheses import (
     DEFAULT_DATASET,
@@ -747,7 +747,7 @@ async def main() -> None:
             results, warnings = reconcile_classifications(layout, classifications)
             if err:
                 warnings.append(err)
-            output = {"expert_hypotheses": expert_hypotheses, "classifications": results}
+            output: dict[str, Any] = {"expert_hypotheses": expert_hypotheses, "classifications": results}
             n_datasets = sum(len(c["datasets"]) for c in results)
             print(
                 f"[{status}] classified {len(results)}/{len(layout.files)} capsules into {n_datasets} datasets"

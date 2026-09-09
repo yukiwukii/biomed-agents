@@ -250,8 +250,9 @@ def main() -> int:
         for line, t in zip([x for x in args.rollouts.read_text().splitlines() if x.strip()], trajectories, strict=True):
             rec = json.loads(line)
             src = sum(len(_text(i)) for i in (rec["response"].get("output") or []))
-            msgs = (t.steps[0].observation if t.steps else []) + [m for st in t.steps for m in st.next_observation]
-            got = sum(len(str(m.content or "")) for m in msgs) + sum(
+            # NB: `msgs` above is a COUNT; this is the message list. Different name.
+            msg_list = (t.steps[0].observation if t.steps else []) + [m for st in t.steps for m in st.next_observation]
+            got = sum(len(str(m.content or "")) for m in msg_list) + sum(
                 len(str(st.action.value.content or "")) for st in t.steps if st.action is not None
             )
             flag = "" if abs(got - src) <= 0.15 * max(src, 1) else "   <-- CHECK"

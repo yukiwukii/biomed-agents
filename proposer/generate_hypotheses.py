@@ -221,11 +221,12 @@ def _excluded(rel_name: str) -> bool:
 
 
 def _human_size(n: int) -> str:
+    size = float(n)
     for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
-            return f"{n:.0f}{unit}" if unit == "B" else f"{n / 1:.0f}{unit}" if False else f"{n:.1f}{unit}"
-        n /= 1024
-    return f"{n:.1f}GB"
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f}B" if unit == "B" else f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{size:.1f}GB"
 
 
 def _preview_text(data: bytes, max_lines: int = 8) -> str:

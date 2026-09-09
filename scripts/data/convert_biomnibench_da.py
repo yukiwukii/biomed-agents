@@ -112,7 +112,7 @@ def parse_max_score(rubric_text: str) -> int:
 
 
 def load_toml_metadata(task_toml_path: Path) -> dict:
-    import tomllib  # type: ignore[no-redef]
+    import tomllib
 
     data = tomllib.loads(task_toml_path.read_text(encoding="utf-8"))
     return data.get("metadata", {})

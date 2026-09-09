@@ -132,6 +132,26 @@ warn_unused_ignores = true
 ignore_missing_imports = true
 module = "datasets"
 
+# Optional, environment-specific dependencies. torch and transformers only exist
+# inside the training container; openpyxl and pypdf are pulled in on demand by the
+# proposer when a capsule ships a spreadsheet or a paper PDF. None are runtime
+# requirements of the package, so they are absent from a normal install.
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "openpyxl",
+    "openpyxl.*",
+    "pypdf",
+    "pypdf.*",
+    "torch",
+    "torch.*",
+    "torch.distributed.*",
+    "torch.distributed.tensor.parallel",
+    "torch.distributed.tensor.placement_types",
+    "transformers",
+    "transformers.*",
+]
+
 [tool.pylint]
 
 [tool.pylint.format]

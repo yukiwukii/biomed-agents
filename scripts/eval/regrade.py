@@ -186,10 +186,10 @@ def derive_first_wrong_step(criteria: list[dict], rubric: str | None = None) -> 
         if max_pts is not None and isinstance(score, (int, float)) and not isinstance(score, bool) and score >= max_pts:
             c["first_wrong_step"] = None
             continue
-        wrong = [
-            s.get("step")
+        wrong: list[int] = [
+            step
             for s in c.get("relevant_steps") or []
-            if isinstance(s, dict) and not s.get("correct", True) and isinstance(s.get("step"), int)
+            if isinstance(s, dict) and not s.get("correct", True) and isinstance(step := s.get("step"), int)
         ]
         c["first_wrong_step"] = min(wrong) if wrong else None
     return criteria
