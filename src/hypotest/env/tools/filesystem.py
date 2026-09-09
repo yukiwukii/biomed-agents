@@ -23,6 +23,7 @@ import nbformat
 import numpy as np
 from aviary.core import Message, Tool
 
+from hypotest.env import config as cfg
 from hypotest.env.utils import img_utils
 from hypotest.env.utils.notebook_utils import view_notebook
 
@@ -507,6 +508,10 @@ def read_image_tool(path: Path) -> str | Message:
     Returns:
         Message with image content or error string
     """
+    # A .png read back off disk costs the same 100k+ tokens as one returned by a
+    # cell, so closing only the execution path would leave this door open.
+    if cfg.STRIP_IMAGES:
+        return f"[Image file '{path.name}' not shown - image content is disabled. Report results as text.]"
     try:
         return img_utils.create_image_message(path, role="tool")
     except Exception as e:
@@ -520,6 +525,8 @@ def notebook_read_tool(path: Path) -> str | Message:
             notebook = nbformat.read(f, as_version=4)
 
         md_notebook, notebook_images = view_notebook(notebook.cells, "python")
+        if cfg.STRIP_IMAGES:
+            notebook_images = []
         return Message.create_message(text=md_notebook, images=cast(list[np.ndarray | str], notebook_images))
 
     except Exception as e:

@@ -80,6 +80,19 @@ def skip_if_r_unavailable(request):
 
 
 @pytest.fixture
+def images_enabled(monkeypatch):
+    """Turn image stripping off for tests that assert the multimodal contract.
+
+    ``cfg.STRIP_IMAGES`` defaults to True, so images never reach the policy. The
+    plumbing behind it still has to work for a vision-capable deployment, and
+    these tests are what guard it -- they assert the ``STRIP_IMAGES=false`` path,
+    not the default one. ``_extract_images_from_output`` reads the flag at call
+    time, so patching the attribute is enough.
+    """
+    monkeypatch.setattr(cfg, "STRIP_IMAGES", False)
+
+
+@pytest.fixture
 def default_problem() -> ProblemInstance:
     """Default ProblemInstance for tests."""
     return ProblemInstance(

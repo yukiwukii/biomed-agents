@@ -1,9 +1,11 @@
 import argparse
 import asyncio
+import contextlib
 import os
 import random
 import shutil
 import socket
+import time
 from collections import Counter
 from pathlib import Path
 from tempfile import mkdtemp
@@ -24,6 +26,89 @@ from hypotest.env.kernel_server import NBLanguage
 
 # Sibling of the capsules holding ground-truth files; see Dataset.get_new_env_by_idx.
 TRUTH_DIR_NAME = "_truth"
+
+# --- idle-environment sweeper -------------------------------------------------
+#
+# WHY: an environment that is never `/close`d stays in TaskDatasetServer.envs
+# forever, holding BOTH a live Jupyter kernel (memory) and its capsule copy in
+# work_dir (disk, up to ~1.1 GB -- get_new_env_by_idx copytree's a full capsule
+# per rollout). Nothing expires them.
+#
+# Measured on the 2026-08-11 GRPO run: 12 `/start` against 9 `/close` over 8
+# episodes -- 3 orphans in 2 training steps. The extra `/start`s are retries, and
+# a retry abandons the previous environment without closing it. The env pod grew
+# to ~275 GiB against a 64 GB request and was evicted by the kubelet:
+#
+#   Evicted: node was low on resource: memory. Container hypotest-env was using
+#   288108748Ki, request is 64G.
+#
+# InterpreterEnv.close() is correct -- it shuts the kernel down and moves/removes
+# work_dir. The bug is only that it is never reached for orphans.
+#
+# aviary ships a `/close_old_envs` endpoint for exactly this, but nothing has ever
+# called it. This sweeps in-process instead, so no caller has to remember.
+#
+# THRESHOLD: `_get_env` refreshes the timestamp at the START of `/reset` and
+# `/step`, so an active episode keeps itself alive -- but a single legitimate cell
+# can run for `cell_execution_timeout` (600 s), during which the env looks idle.
+# The default is therefore well above that. Sweeping a LIVE environment kills a
+# running episode and wastes GPU time, so err long.
+ENV_SWEEP_IDLE_SECONDS = float(os.getenv("ENV_SWEEP_IDLE_SECONDS", "1800"))
+ENV_SWEEP_PERIOD_SECONDS = float(os.getenv("ENV_SWEEP_PERIOD_SECONDS", "300"))
+# Per-env cap so one wedged close cannot stall the whole sweep.
+ENV_SWEEP_CLOSE_TIMEOUT = float(os.getenv("ENV_SWEEP_CLOSE_TIMEOUT", "120"))
+
+
+async def sweep_idle_envs(
+    server: TaskDatasetServer,
+    idle_seconds: float = ENV_SWEEP_IDLE_SECONDS,
+    period_seconds: float = ENV_SWEEP_PERIOD_SECONDS,
+) -> None:
+    """Periodically close environments no client has touched in `idle_seconds`.
+
+    Runs until cancelled. Never raises: a failure here must not take the server
+    down, and must not stop later sweeps.
+
+    Args:
+        server: the running TaskDatasetServer whose `envs` map is swept.
+        idle_seconds: close environments untouched for at least this long.
+            Non-positive disables sweeping entirely.
+        period_seconds: how often to check.
+    """
+    if idle_seconds <= 0:
+        print("[env-sweeper] disabled (ENV_SWEEP_IDLE_SECONDS <= 0)", flush=True)
+        return
+
+    print(
+        f"[env-sweeper] on: closing envs idle > {idle_seconds:.0f}s, checking every {period_seconds:.0f}s",
+        flush=True,
+    )
+    while True:
+        await asyncio.sleep(period_seconds)
+        try:
+            # server.envs stores wall-clock time.time(); compare in the same clock.
+            wall_now = time.time()
+            async with server.lock:
+                stale = [
+                    (env_id, env)
+                    for env_id, (env, last_used) in list(server.envs.items())
+                    if wall_now - last_used > idle_seconds
+                ]
+                for env_id, env in stale:
+                    try:
+                        await asyncio.wait_for(env.close(), timeout=ENV_SWEEP_CLOSE_TIMEOUT)
+                    except Exception as exc:  # noqa: BLE001
+                        # Untrack regardless. As aviary's own /close notes, a
+                        # failed close means the env is probably already broken --
+                        # keeping it tracked leaks it forever, which is the exact
+                        # problem this sweeper exists to fix.
+                        print(f"[env-sweeper] close failed for {env_id}, untracking anyway: {exc!r}", flush=True)
+                    finally:
+                        server.envs.pop(env_id, None)
+            if stale:
+                print(f"[env-sweeper] closed {len(stale)} idle env(s); {len(server.envs)} still tracked", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[env-sweeper] sweep failed, continuing: {exc!r}", flush=True)
 
 
 class DatasetConfig(BaseModel):
@@ -244,9 +329,18 @@ async def launch_server():
     server = TaskDatasetServer(dataset, port=config.port, api_key=config.api_key)
 
     ip_address = socket.gethostbyname(socket.gethostname())
-    print(f"Starting dataset server: IPAddress={ip_address} Port={config.port}")
+    print(f"Starting dataset server: IPAddress={ip_address} Port={config.port}", flush=True)
 
-    await server.astart()
+    # Reap orphaned environments alongside the server. Without this, an env that
+    # is never `/close`d (retries abandon one each time) keeps its Jupyter kernel
+    # and its ~1 GB capsule copy forever -- see sweep_idle_envs.
+    sweeper = asyncio.create_task(sweep_idle_envs(server))
+    try:
+        await server.astart()
+    finally:
+        sweeper.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sweeper
 
 
 if __name__ == "__main__":

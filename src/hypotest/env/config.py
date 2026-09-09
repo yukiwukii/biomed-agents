@@ -22,8 +22,34 @@ KERNEL_SERVER_STARTUP_TIMEOUT = float(
 
 MAX_FILES_TO_UPLOAD = int(os.getenv("MAX_FILES_TO_UPLOAD", "100"))
 
-# Some R error messages can be 100,000 of characters
-NB_OUTPUT_LIMIT = 3000  # chars
+# Some R error messages can be 100,000 of characters.
+# 2026-08-14: env-tunable (was a hardcoded 3000). Tool/cell OUTPUT is ~52% of an
+# episode's tokens and is the main lever on episode LENGTH without capping the
+# agent's turns -- lowering this shrinks episodes so the 27B trainer forward fits
+# on 80 GB H100 (a 48.5k-token episode OOM'd the forward by ~1 GiB). It changes
+# what the MODEL SEES per cell (capability/reward-adjacent), so it is a knob, not
+# a silent default. Set via NB_OUTPUT_LIMIT in the env pod (workloads.sh).
+NB_OUTPUT_LIMIT = int(os.getenv("NB_OUTPUT_LIMIT", "3000"))  # chars
+
+# Strip images before they reach the policy.
+#
+# WHY: a plot comes back as a base64 data URI. A vision-capable server prices it
+# by pixels (~1.8k tokens), but the GRPO path serves the policy with
+# `language_model_only: true` -- no vision tower -- so vLLM tokenizes the base64
+# as TEXT. One matplotlib figure measured 101,573 tokens (56x its pixel price)
+# and another 194,763; both blew the 131,072 context, returned HTTP 400, and
+# killed the episode before it could submit an answer, scoring 0. Note that
+# NB_OUTPUT_LIMIT above truncates text but has never applied to images, so the
+# single largest thing a cell can return was also the only uncapped one.
+#
+# Nothing downstream wants the pixels: the judge reads `view_notebook`'s markdown
+# and its image list is discarded (interpreter_env.py `_score_solution`), and 0
+# of 341 rubric criteria across the 51 capsules require a figure.
+#
+# Images remain in the notebook itself -- this strips them from what the MODEL
+# sees, not from the saved record. Set STRIP_IMAGES=false to restore the old
+# behaviour when serving a policy that really can consume images.
+STRIP_IMAGES = bool(os.getenv("STRIP_IMAGES", "true").lower() == "true")
 # Streams from a docker container. Don't set to `sys.stdout.fileno()`
 # because we want to differentiate from file I/O
 DOCKER_STREAM_TYPE_STDOUT = 1

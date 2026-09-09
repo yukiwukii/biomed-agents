@@ -228,6 +228,7 @@ class TestInterpreterEnv:
         assert len(interpreter_env.state.nb.cells) == 2
         assert interpreter_env.state.nb.cells[0].source == "x = 42"
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_interpreter_env_run_cell_with_images(self, interpreter_env: InterpreterEnv):
@@ -392,6 +393,7 @@ class TestInterpreterEnvRunCell:
         assert interpreter_env.state is not None
         assert len(interpreter_env.state.nb.cells) == 1
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_run_cell_with_images(self, interpreter_env: InterpreterEnv):
@@ -488,6 +490,7 @@ def create_test_png_file(path: pathlib.Path) -> None:
 class TestMultimodalToolOutputs:
     """Tests for multimodal tool outputs via step() method."""
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_step_run_cell_with_plot_returns_correct_multimodal_format(self, interpreter_env: InterpreterEnv):
@@ -651,6 +654,7 @@ class TestInterpreterEnvDocker:
             finally:
                 await state.close()
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.parametrize("use_docker", [False, True])
     @pytest.mark.asyncio

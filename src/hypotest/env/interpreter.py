@@ -58,8 +58,16 @@ class ExecutionResult(BaseModel):
 
         if output_type in {MessageType.EXECUTE_RESULT, MessageType.DISPLAY_DATA}:
             data = output.get("data", {})
-            # Check for images first to add placeholder text
-            text_parts = ["[Image generated]"] if utils.JUPYTER_IMAGE_OUTPUT_TYPES.intersection(data.keys()) else []
+            # Check for images first to add placeholder text. When stripping, say so
+            # plainly: the agent is told not to plot, so a figure here means it did
+            # anyway, and a bare "[Image generated]" would read as success.
+            text_parts = []
+            if utils.JUPYTER_IMAGE_OUTPUT_TYPES.intersection(data.keys()):
+                text_parts = [
+                    "[Image output suppressed - do not create plots or figures; report results as text]"
+                    if cfg.STRIP_IMAGES
+                    else "[Image generated]"
+                ]
             # Add text/plain if available
             if "text/plain" in data:
                 text_parts.append(data["text/plain"])
@@ -87,6 +95,13 @@ class ExecutionResult(BaseModel):
             List of (mime_type, base64_data) tuples
         """
         images: list[tuple[str, str]] = []
+        # The single chokepoint for cell-execution images: both get_images() and
+        # has_images() route through here, so returning nothing makes the caller
+        # in interpreter_env fall through to its text-only branch. The output
+        # itself is untouched, so the notebook keeps the figure. See cfg.STRIP_IMAGES.
+        if cfg.STRIP_IMAGES:
+            return images
+
         output_type = output.get("output_type", "")
 
         if output_type in {MessageType.EXECUTE_RESULT, MessageType.DISPLAY_DATA}:
