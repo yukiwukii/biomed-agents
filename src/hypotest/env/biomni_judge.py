@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ def _extract_json_object(text: str) -> dict:
     return json.loads(text[start:])  # unbalanced — let json raise
 
 
-def score_rich_levels(criteria: list[dict], rubric: str) -> int:
+def score_rich_levels(criteria: list[Any], rubric: str) -> int:
     """Map each rich criterion's A/B/C ``level`` → points via the rubric's ``Levels:`` table.
 
     For the biomni grading path that emits hypotest's *rich* rubric schema (a list of
@@ -134,6 +135,8 @@ def score_rich_levels(criteria: list[dict], rubric: str) -> int:
         level_maps = []
     total = 0
     for i, c in enumerate(criteria):
+        # criteria is parsed from model output, so a malformed entry is possible
+        # even though the happy path is always a dict. Skip rather than raise.
         if not isinstance(c, dict):
             continue
         allowed = level_maps[i] if i < len(level_maps) else {}

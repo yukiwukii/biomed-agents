@@ -282,8 +282,12 @@ class Interpreter:
             kernel_python = Path(cfg.KERNEL_ENV_PATH) / "bin" / "python"
             if kernel_python.exists():
                 # Accessing .kernel_spec loads and caches the spec on the manager; mutating
-                # argv[0] in place is picked up by the subsequent start_kernel() call.
-                self.kernel_manager.kernel_spec.argv[0] = str(kernel_python)
+                # argv[0] in place is picked up by the subsequent start_kernel() call. The
+                # property is typed Optional but only returns None when no kernel name is
+                # set, which cannot happen here -- start() always sets one.
+                kernel_spec = self.kernel_manager.kernel_spec
+                if kernel_spec is not None:
+                    kernel_spec.argv[0] = str(kernel_python)
 
         # Prepare kernel startup kwargs with environment variables
         kwargs: dict[str, Any] = {"cwd": str(self.work_dir.resolve())}

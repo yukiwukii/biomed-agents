@@ -55,7 +55,7 @@ class HFSimpleAgent(SimpleAgent):
 class SimpleAgentConfig(AgentConfig):
     agent_type: Literal["SimpleAgent", "HFSimpleAgent"] = "SimpleAgent"  # type: ignore[mutable-override]
 
-    def construct_agent(self):  # type: ignore[override]
+    def construct_agent(self):
         if self.agent_type == "HFSimpleAgent":
             return HFSimpleAgent(**self.agent_kwargs)
         return super().construct_agent()
