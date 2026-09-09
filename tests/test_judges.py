@@ -89,8 +89,7 @@ class TestRubricLevelParsing:
     """
 
     PENALTY_RUBRIC = (
-        "Criterion 1: Loads the data\nLevels: A=10 B=5 C=0\n\n"
-        "Criterion 2: Source Reliability\nLevels: A=0 B=-5 C=-10"
+        "Criterion 1: Loads the data\nLevels: A=10 B=5 C=0\n\nCriterion 2: Source Reliability\nLevels: A=0 B=-5 C=-10"
     )
 
     def test_negative_levels_parse(self) -> None:
@@ -137,8 +136,7 @@ class TestRubricLevelParsing:
             pytest.skip("biomnibench capsules not staged")
         rows = [json.loads(line) for line in jsonl.read_text().splitlines() if line.strip()]
         negatives = [
-            any(v < 0 for levels in parse_rubric_levels(r["rubric"]).values() for v in levels.values())
-            for r in rows
+            any(v < 0 for levels in parse_rubric_levels(r["rubric"]).values() for v in levels.values()) for r in rows
         ]
         assert all(negatives), f"{negatives.count(False)}/{len(rows)} rubrics lost their penalty levels"
 
@@ -290,6 +288,7 @@ class StubModel:
 def run_judge(name: str, ctx: JudgeContext, model: "StubModel") -> Awaitable[JudgeResult]:
     """Invoke a judge with a StubModel — duck-typed for call_json, not a real LiteLLMModel."""
     return JUDGES[name].fn(ctx, cast("LiteLLMModel", model))
+
 
 BIOMYSTERY_RUBRIC = (
     "The answer is Bacillus licheniformis. "

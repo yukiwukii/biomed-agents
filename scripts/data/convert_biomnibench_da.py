@@ -84,7 +84,7 @@ def load_env(path: Path = ROOT / ".env") -> None:
     """Populate os.environ from a KEY=VALUE .env file (does not overwrite)."""
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -112,11 +112,9 @@ def parse_max_score(rubric_text: str) -> int:
 
 
 def load_toml_metadata(task_toml_path: Path) -> dict:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:  # pragma: no cover
-        import tomli as tomllib  # type: ignore[no-redef]
-    data = tomllib.loads(task_toml_path.read_text())
+    import tomllib  # type: ignore[no-redef]
+
+    data = tomllib.loads(task_toml_path.read_text(encoding="utf-8"))
     return data.get("metadata", {})
 
 
@@ -197,8 +195,18 @@ def download_snapshot(dest: Path, token: str | None) -> Path:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--snapshot-dir", type=Path, default=None, help="Reuse an already-downloaded HF snapshot instead of re-downloading")
-    ap.add_argument("--cache-dir", type=Path, default=ROOT / ".cache" / "biomnibench-da", help="Where to download the snapshot (if not using --snapshot-dir)")
+    ap.add_argument(
+        "--snapshot-dir",
+        type=Path,
+        default=None,
+        help="Reuse an already-downloaded HF snapshot instead of re-downloading",
+    )
+    ap.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=ROOT / ".cache" / "biomnibench-da",
+        help="Where to download the snapshot (if not using --snapshot-dir)",
+    )
     ap.add_argument("--out-jsonl", type=Path, default=ROOT / "problems_biomnibench_da.jsonl")
     ap.add_argument("--capsule-dir", type=Path, default=ROOT / "capsules_biomnibench_da")
     ap.add_argument("--limit", type=int, default=None, help="Only convert the first N tasks")
@@ -230,7 +238,7 @@ def main() -> None:
         try:
             problems.append(build_problem(task_id, task_dir, args.capsule_dir))
             print(f"[ok] {task_id}")
-        except Exception as e:  # noqa: BLE001 — keep converting the rest, report failures
+        except Exception as e:
             print(f"[error] {task_id}: {type(e).__name__}: {e}")
 
     with args.out_jsonl.open("w") as f:

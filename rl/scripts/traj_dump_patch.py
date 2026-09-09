@@ -24,7 +24,7 @@ never be able to kill the run it is observing.
 import sys
 
 path = sys.argv[1]
-src = open(path).read()
+src = open(path, encoding="utf-8").read()
 
 anchor = (
     "                    # Convert updated LLMMessageLogType to FlatMessagesType for training\n"
@@ -120,5 +120,5 @@ if marker not in src:
     raise SystemExit("grpo_train def not found; cannot place the helper.")
 src = src.replace(marker, helper + marker.lstrip("\n"), 1)
 
-open(path, "w").write(src)
+open(path, "w", encoding="utf-8").write(src)
 print("patched", path)

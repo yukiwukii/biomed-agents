@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Map each trajectory in trajectories.pkl to its results/<run_id>/score_info.json
-by matching the agent's submitted answer against the rendered rubric prompt."""
+by matching the agent's submitted answer against the rendered rubric prompt.
+"""
+
 import json
 import pickle
 import re

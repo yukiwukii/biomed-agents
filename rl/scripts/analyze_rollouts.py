@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-gate analysis of a NeMo Gym rollout JSONL.
+r"""Smoke-gate analysis of a NeMo Gym rollout JSONL.
 
 This is the gate that decides whether GRPO can start, so it reports the four
 things that actually block training — not a generic metrics dump:
@@ -47,7 +47,7 @@ from typing import Any
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
+    return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
 def iter_response_items(record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -127,7 +127,7 @@ def pct(values: list[float], q: float) -> float:
     if not values:
         return 0.0
     ordered = sorted(values)
-    idx = min(len(ordered) - 1, max(0, int(round(q / 100.0 * len(ordered) + 0.5)) - 1))
+    idx = min(len(ordered) - 1, max(0, round(q / 100.0 * len(ordered) + 0.5) - 1))
     return ordered[idx]
 
 

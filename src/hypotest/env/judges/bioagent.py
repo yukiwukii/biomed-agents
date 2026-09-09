@@ -82,7 +82,7 @@ def norm(value: str) -> str:
 def read_table(path: Path) -> Table | None:
     """Parse a CSV/TSV. Delimiter is sniffed from the extension, then from the header line."""
     try:
-        text = path.read_text(errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as e:  # unreadable file is not a scoring error, just a non-candidate
         logger.warning("could not read %s: %s", path, e)
         return None
@@ -294,7 +294,7 @@ def check_transcript_quant(tables: list[Table], truth_dir: Path) -> CheckResult:
 
 
 def check_viral_metagenomics(tables: list[Table], truth_dir: Path) -> CheckResult:
-    """"Bottlenose dolphin adenovirus 1" explicitly reported under the Viruses domain."""
+    """ "Bottlenose dolphin adenovirus 1" explicitly reported under the Viruses domain."""
     truth = read_truth(truth_dir, "taxonomy.csv")
     species = [norm(s) for s in (truth.column("species") or [])]
     target = next((s for s in species if "adenovirus" in s), "bottlenose dolphin adenovirus 1")

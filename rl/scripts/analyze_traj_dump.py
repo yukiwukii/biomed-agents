@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import operator
 import pathlib
 import re
 import sys
@@ -43,7 +44,7 @@ from collections import Counter
 # <think>...</think> is how this model family emits reasoning, and the served
 # endpoints run no reasoning parser during training, so it stays inline in the
 # assistant content rather than arriving as a separate field.
-THINK = re.compile(r"<think>(.*?)</think>", re.S)
+THINK = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 
 def classify(msg: dict) -> str:
@@ -74,11 +75,7 @@ def main() -> int:
     ap.add_argument("--top", type=int, default=3, help="show this many longest episodes in detail")
     args = ap.parse_args()
 
-    files = (
-        sorted(args.path.glob("traj_step*.jsonl"))
-        if args.path.is_dir()
-        else [args.path]
-    )
+    files = sorted(args.path.glob("traj_step*.jsonl")) if args.path.is_dir() else [args.path]
     if not files:
         print(f"no traj_step*.jsonl under {args.path}", file=sys.stderr)
         return 1
@@ -142,11 +139,8 @@ def main() -> int:
         )
         for k, v in b.most_common():
             print(f"      {k:<20} {v:>9,}  {v / max(1, sum(b.values())) * 100:5.1f}%")
-        biggest = max(ep["messages"], key=lambda m: m["n_tokens"])
-        print(
-            f"      largest single message: {biggest['n_tokens']:,} tok "
-            f"({biggest.get('role')})"
-        )
+        biggest = max(ep["messages"], key=operator.itemgetter("n_tokens"))
+        print(f"      largest single message: {biggest['n_tokens']:,} tok ({biggest.get('role')})")
 
     print(
         "\nHOW TO USE THIS: per-step cost = input_length / n_messages. Size\n"

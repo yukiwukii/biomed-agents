@@ -209,7 +209,7 @@ def derive_first_wrong_step(criteria: list[dict], rubric: str | None = None) -> 
     """
     try:
         max_scores = parse_criterion_max_scores(rubric) if rubric else []
-    except Exception as parse_err:  # noqa: BLE001
+    except Exception as parse_err:
         logger.warning("failed to parse criterion max scores: %s", parse_err)
         max_scores = []
 

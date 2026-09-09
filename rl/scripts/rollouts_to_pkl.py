@@ -119,9 +119,11 @@ def build_trajectory(rec: dict[str, Any], traj_id: str) -> Trajectory:
     obs: list[Message] = []
     if isinstance(params.get("instructions"), str) and params["instructions"]:
         obs.append(Message(role="system", content=params["instructions"]))
-    for m in params.get("input") or []:
-        if isinstance(m, dict):
-            obs.append(Message(role=m.get("role", "user"), content=_text(m) or ""))
+    obs.extend(
+        Message(role=m.get("role", "user"), content=_text(m) or "")
+        for m in params.get("input") or []
+        if isinstance(m, dict)
+    )
 
     run_id = uuid.uuid4()
     steps: list[Transition] = []
@@ -144,15 +146,13 @@ def build_trajectory(rec: dict[str, Any], traj_id: str) -> Trajectory:
         # benchmark's data is shaped -- one continuous `content` string holding
         # the reasoning, then </think>, then the response -- so counting
         # `content` gives the same total on both sources, with no double count.
-        if itype in ("reasoning", "message"):
+        if itype in {"reasoning", "message"}:
             t = _text(item)
             if t:
                 pending.append(t)
 
         elif itype == "function_call":
-            call = ToolCall.from_name(
-                item.get("name", "unknown"), **{"arguments": item.get("arguments", "")}
-            )
+            call = ToolCall.from_name(item.get("name", "unknown"), arguments=item.get("arguments", ""))
             # content is reasoning + visible text ONLY. Do NOT append _text(item)
             # here: for a function_call item that helper falls through to the
             # "arguments" key and returns the code, which already lives in
@@ -199,8 +199,9 @@ def build_trajectory(rec: dict[str, Any], traj_id: str) -> Trajectory:
                 incoming = list(produced)  # becomes the next step's observation
 
     if pending and steps:  # trailing assistant text with no tool call
-        steps[-1].next_observation = list(steps[-1].next_observation) + [
-            Message(role="assistant", content="".join(pending))
+        steps[-1].next_observation = [
+            *list(steps[-1].next_observation),
+            Message(role="assistant", content="".join(pending)),
         ]
 
     if steps:  # terminal-only reward, as benchmark_agent.py:224 assumes
@@ -246,14 +247,13 @@ def main() -> int:
 
     if args.verify:
         print("\nreconciliation vs source (unique-message char totals):")
-        for line, t in zip(
-            [x for x in args.rollouts.read_text().splitlines() if x.strip()], trajectories, strict=True
-        ):
+        for line, t in zip([x for x in args.rollouts.read_text().splitlines() if x.strip()], trajectories, strict=True):
             rec = json.loads(line)
             src = sum(len(_text(i)) for i in (rec["response"].get("output") or []))
             msgs = (t.steps[0].observation if t.steps else []) + [m for st in t.steps for m in st.next_observation]
             got = sum(len(str(m.content or "")) for m in msgs) + sum(
-                len(str(st.action.value.content or "")) for st in t.steps if st.action is not None)
+                len(str(st.action.value.content or "")) for st in t.steps if st.action is not None
+            )
             flag = "" if abs(got - src) <= 0.15 * max(src, 1) else "   <-- CHECK"
             print(f"  {t.traj_id:<20} source={src:>9,}  rebuilt={got:>9,}{flag}")
     return 0

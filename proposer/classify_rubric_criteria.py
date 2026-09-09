@@ -5,13 +5,13 @@ list field in place. One model call per rubric (all its criteria classified toge
 Usage:
     .venv/bin/python proposer/classify_rubric_criteria.py
 """
+
 import argparse
 import asyncio
 import json
 from pathlib import Path
 
 from lmi import LiteLLMModel
-
 from rubric_classifier import DEFAULT_MODEL, classify_many, load_env
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,7 +43,7 @@ async def main() -> None:
         },
     )
 
-    with open(args.path) as f:
+    with open(args.path, encoding="utf-8") as f:
         data = json.load(f)
 
     # Collect one job per rubric (hypothesis + its criteria texts), keeping a handle back
@@ -72,7 +72,7 @@ async def main() -> None:
             total += 1
         rub["categories_reasoning"] = reasoning
 
-    with open(args.path, "w") as f:
+    with open(args.path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
 

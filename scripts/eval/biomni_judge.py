@@ -69,7 +69,7 @@ def load_env(path: Path = ROOT / ".env") -> None:
 
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -117,15 +117,15 @@ def make_model(name: str, api_base: str | None, api_key: str | None, temperature
 
 
 async def run_native(args: argparse.Namespace, model: LiteLLMModel) -> None:
-    rubric = Path(args.rubric).read_text()
-    trace = Path(args.trace).read_text() if args.trace and Path(args.trace).exists() else ""
-    answer = Path(args.answer).read_text() if args.answer and Path(args.answer).exists() else ""
+    rubric = Path(args.rubric).read_text(encoding="utf-8")
+    trace = Path(args.trace).read_text(encoding="utf-8") if args.trace and Path(args.trace).exists() else ""
+    answer = Path(args.answer).read_text(encoding="utf-8") if args.answer and Path(args.answer).exists() else ""
     total, criteria, reasoning = await grade(model, rubric, trace, answer)
     out = {"total_score": total, "score": total / 100, "criteria": criteria, "reasoning": reasoning}
     print(json.dumps(out, indent=2))
     if args.write:
         dest = Path(args.write if isinstance(args.write, str) else "biomni_evaluation.json")
-        dest.write_text(json.dumps(out, indent=2))
+        dest.write_text(json.dumps(out, indent=2), encoding="utf-8")
         print(f"\nWrote {dest}")
 
 
@@ -137,7 +137,7 @@ async def run_results(args: argparse.Namespace, model: LiteLLMModel) -> None:
     sem = asyncio.Semaphore(args.concurrency)
 
     async def grade_path(p: Path):
-        d = json.loads(p.read_text())
+        d = json.loads(p.read_text(encoding="utf-8"))
         # [PATCH 24] Deterministically-scored runs save no prompt — nothing to re-grade.
         rubric, notebook, answer = extract_from_score_info(d.get("prompt", ""))
         if not rubric:

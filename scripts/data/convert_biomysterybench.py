@@ -136,13 +136,24 @@ def extract_capsule(zip_path: Path, dest: Path, dry_run: bool = False) -> tuple[
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dataset-dir", type=Path, default=ROOT / "capsules" / "biomysterybench",
-                    help="Clone of Anthropic/BioMysteryBench-full (holds problems.csv and data/)")
-    ap.add_argument("--capsule-dir", type=Path, default=None,
-                    help="Where to extract per-problem capsules (default: <dataset-dir>, flat like the "
-                         "other benchmarks)")
-    ap.add_argument("--out-jsonl", type=Path, default=None,
-                    help="Output jsonl (default: <dataset-dir>/problems_biomysterybench.jsonl)")
+    ap.add_argument(
+        "--dataset-dir",
+        type=Path,
+        default=ROOT / "capsules" / "biomysterybench",
+        help="Clone of Anthropic/BioMysteryBench-full (holds problems.csv and data/)",
+    )
+    ap.add_argument(
+        "--capsule-dir",
+        type=Path,
+        default=None,
+        help="Where to extract per-problem capsules (default: <dataset-dir>, flat like the other benchmarks)",
+    )
+    ap.add_argument(
+        "--out-jsonl",
+        type=Path,
+        default=None,
+        help="Output jsonl (default: <dataset-dir>/problems_biomysterybench.jsonl)",
+    )
     ap.add_argument("--extract", action="store_true", help="Also unpack data/<id>.zip into the capsule dir")
     ap.add_argument("--only", nargs="*", default=None, help="Only these problem ids")
     ap.add_argument("--dry-run", action="store_true", help="Report what would be written/extracted")
@@ -190,7 +201,7 @@ def main() -> None:
 
     if not args.dry_run:
         out_jsonl.parent.mkdir(parents=True, exist_ok=True)
-        out_jsonl.write_text("\n".join(json.dumps(p) for p in problems) + "\n")
+        out_jsonl.write_text("\n".join(json.dumps(p) for p in problems) + "\n", encoding="utf-8")
 
     solvable = sum(1 for p in problems if p["metadata"]["human_solvable"] == "yes")
     verb = "Would write" if args.dry_run else "Wrote"

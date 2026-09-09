@@ -44,7 +44,7 @@ See also: [Runbook — recovering a broken `.venv` or kernel env](#runbook--reco
 
 ---
 
-## Patch 2 — HFSimpleAgent for HuggingFace Inference API compatibility 
+## Patch 2 — HFSimpleAgent for HuggingFace Inference API compatibility
 
 **Files:** `src/hypotest/benchmark_agent.py`
 

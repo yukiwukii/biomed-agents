@@ -100,11 +100,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "eval"))  # for `import regrade`
 sys.path.insert(0, str(ROOT / "src"))  # hypotest isn't installed in the env; import from source
 
+import regrade  # noqa: E402 — reuse trajectory↔score_info matching helpers
 from aviary.core import Message  # noqa: E402
 from ldp.data_structures import Trajectory, Transition  # noqa: E402
 from tqdm.asyncio import tqdm  # noqa: E402 — concurrent fork progress bar (same as benchmark_agent)
 
-import regrade  # noqa: E402 — reuse trajectory↔score_info matching helpers
 from hypotest.benchmark_agent import SimpleAgentConfig  # noqa: E402 — same policy as benchmark
 from hypotest.dataset_server import Dataset, ServerConfig  # noqa: E402
 from hypotest.env import config as env_cfg  # noqa: E402 — AGENT_MAX_STEPS, for the budget check
@@ -184,11 +184,7 @@ def criterion_feedback(crits: list[dict]) -> str | None:
     if not notes:
         return None
     bullets = "\n".join(f"- {fb}" for fb in notes)
-    return (
-        "Guidance for how to proceed (from an evaluator):\n"
-        f"{bullets}\n\n"
-        "Take this into account as you continue."
-    )
+    return f"Guidance for how to proceed (from an evaluator):\n{bullets}\n\nTake this into account as you continue."
 
 
 def idx_from_traj_id(traj_id: str) -> int:
@@ -409,8 +405,7 @@ async def fork_one(traj, *, args, scfg, agent, mapping) -> dict:
     # fork point leaves no room to generate anything.
     if fork_k >= env_cfg.AGENT_MAX_STEPS - 1:
         raise SkipFork(
-            f"{root_id}: fork at step {fork_k} leaves no room to generate "
-            f"(AGENT_MAX_STEPS={env_cfg.AGENT_MAX_STEPS})"
+            f"{root_id}: fork at step {fork_k} leaves no room to generate (AGENT_MAX_STEPS={env_cfg.AGENT_MAX_STEPS})"
         )
 
     return await fork_round(
@@ -446,8 +441,7 @@ async def main() -> None:
         "--first-wrong-step",
         type=int,
         default=None,
-        help="Override the fork cell (default: read from matched score_info.json). Only valid with a "
-        "single --traj-id.",
+        help="Override the fork cell (default: read from matched score_info.json). Only valid with a single --traj-id.",
     )
     ap.add_argument("--min-match", type=float, default=0.95, help="Warn if best answer match ratio is below this")
     ap.add_argument(
@@ -506,7 +500,7 @@ async def main() -> None:
             except SkipFork as e:
                 print(f"SKIP: {e}")
                 return ("skipped", traj.traj_id, str(e))
-            except Exception as e:  # noqa: BLE001 — keep forking the rest of the batch
+            except Exception as e:
                 print(f"ERROR forking {traj.traj_id}: {e}")
                 return ("failed", traj.traj_id, str(e))
 
@@ -530,7 +524,7 @@ async def main() -> None:
         print(
             f"  {r['source_traj_id']:<24} cell {r['fork_cell']:<4} "
             f"score {str(r['old_score']) + ' -> ' + str(r['new_score']):<14} "
-            f"next fws {str(r['new_first_wrong_step']):<6} "
+            f"next fws {r['new_first_wrong_step']!s:<6} "
             f"({r['n_replayed']}+{r['n_generated']} steps) {r['stop_reason']}"
         )
     for tid, why in skipped:

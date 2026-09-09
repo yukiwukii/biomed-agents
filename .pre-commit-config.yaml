@@ -5,6 +5,12 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        # Default is 500 KB. This repo deliberately tracks run artifacts as a
+        # record of the experiments: the proposer's generated-hypothesis dumps
+        # (~1.9 MB each), its rendered rubric viewer, the analysis notebooks with
+        # their outputs, and the combined RL data split. 2 MB covers those with
+        # headroom while still catching an accidental capsule or model checkpoint.
+        args: [--maxkb=2048]
         exclude: uv.lock
       - id: check-case-conflict
       - id: check-merge-conflict

@@ -6,6 +6,7 @@ dimensions via an LLM call (one call per rubric, all its criteria classified tog
 Usage:
     .venv/bin/python proposer/classify_original_rubrics.py
 """
+
 import argparse
 import asyncio
 import json
@@ -14,7 +15,6 @@ from pathlib import Path
 
 from datasets import load_dataset
 from lmi import LiteLLMModel
-
 from rubric_classifier import DEFAULT_MODEL, classify_many, load_env
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -88,7 +88,7 @@ async def main() -> None:
             total += 1
         entry["categories_reasoning"] = reasoning
 
-    with open(args.out, "w") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
         f.write("\n")
 

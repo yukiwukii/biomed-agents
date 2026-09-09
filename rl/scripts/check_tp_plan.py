@@ -28,13 +28,13 @@ GB = 1e9
 
 def load_plan_keys(path: str) -> list[str]:
     """Read the plan's dict keys without importing torch."""
-    src = open(path).read()
-    lm = re.search(r'^_LM\s*=\s*["\'](.+?)["\']', src, re.M)
+    src = open(path, encoding="utf-8").read()
+    lm = re.search(r'^_LM\s*=\s*["\'](.+?)["\']', src, re.MULTILINE)
     prefix = lm.group(1) if lm else ""
-    keys = []
-    for raw in re.findall(r'^\s*f?["\'](.+?)["\']\s*:\s*(?:Colwise|Rowwise)', src, re.M):
-        keys.append(raw.replace("{_LM}", prefix))
-    return keys
+    return [
+        raw.replace("{_LM}", prefix)
+        for raw in re.findall(r'^\s*f?["\'](.+?)["\']\s*:\s*(?:Colwise|Rowwise)', src, re.MULTILINE)
+    ]
 
 
 def checkpoint_tensors(model_dir: str) -> dict[str, int]:

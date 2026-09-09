@@ -104,9 +104,9 @@ from pathlib import Path
 # "exact same agentic capabilities". scripts/ is not a package, so add it to sys.path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from typing import Literal  # noqa: E402
+from typing import Literal
 
-from generate_hypotheses import (  # noqa: E402
+from generate_hypotheses import (
     DEFAULT_DATASET,
     DEFAULT_EXEC_TIMEOUT,
     DEFAULT_MODEL,
@@ -121,8 +121,8 @@ from generate_hypotheses import (  # noqa: E402
     load_expert_hypotheses,
     materialize_capsule,
 )
-from lmi import LiteLLMModel  # noqa: E402
-from pydantic import BaseModel, ValidationError  # noqa: E402
+from lmi import LiteLLMModel
+from pydantic import BaseModel, ValidationError
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -448,8 +448,10 @@ class BatchLayout:
     def seed_listing(self) -> str:
         blocks: list[str] = []
         for cid, files in self.files.items():
-            blocks.append(f"### capsule {cid}/  ({len(files)} files)")
-            blocks.append(self.previews.get(cid, "") or "(no previewable files)")
+            blocks.extend((
+                f"### capsule {cid}/  ({len(files)} files)",
+                self.previews.get(cid, "") or "(no previewable files)",
+            ))
         return "\n".join(blocks)
 
     def all_file_paths(self) -> list[str]:
@@ -517,8 +519,7 @@ def reconcile_groups(
             files.append(path)
         results.append({"label": g.label, "explanation": g.explanation, "files": files})
     missing = sorted(known - seen)
-    for path in missing:
-        warnings.append(f"missing group assignment for {path}")
+    warnings.extend(f"missing group assignment for {path}" for path in missing)
     if missing:
         results.append({"label": "(ungrouped)", "explanation": None, "files": missing})
     return results, warnings
@@ -577,19 +578,16 @@ def reconcile_classifications(
                     continue
                 seen_files.add(f)
                 files.append(f)
-            datasets.append(
-                {
-                    "label": ds.label,
-                    "files": files,
-                    "study_design": ds.study_design,
-                    "temporal_structure": ds.temporal_structure,
-                    "biological_context": ds.biological_context,
-                    "comparison_axis": ds.comparison_axis,
-                }
-            )
+            datasets.append({
+                "label": ds.label,
+                "files": files,
+                "study_design": ds.study_design,
+                "temporal_structure": ds.temporal_structure,
+                "biological_context": ds.biological_context,
+                "comparison_axis": ds.comparison_axis,
+            })
         missing_files = sorted(known_files - seen_files)
-        for f in missing_files:
-            warnings.append(f"capsule {c.capsule_id!r}: missing dataset assignment for file {f!r}")
+        warnings.extend(f"capsule {c.capsule_id!r}: missing dataset assignment for file {f!r}" for f in missing_files)
         if missing_files:
             datasets.append({"label": "(unclassified)", "files": missing_files, **_UNKNOWN_AXES})
         results.append({"capsule_id": c.capsule_id, "overview": c.overview, "datasets": datasets})
@@ -597,13 +595,11 @@ def reconcile_classifications(
     missing_capsules = sorted(known_capsules - seen_capsules)
     for cid in missing_capsules:
         warnings.append(f"missing classification for capsule {cid}")
-        results.append(
-            {
-                "capsule_id": cid,
-                "overview": None,
-                "datasets": [{"label": "(unclassified)", "files": list(layout.files[cid]), **_UNKNOWN_AXES}],
-            }
-        )
+        results.append({
+            "capsule_id": cid,
+            "overview": None,
+            "datasets": [{"label": "(unclassified)", "files": list(layout.files[cid]), **_UNKNOWN_AXES}],
+        })
     return results, warnings
 
 
@@ -621,7 +617,8 @@ def write_trajectory(
 ) -> None:
     """``output`` is the same mode-specific dict written to ``--out``: ``{"summary", "expert_hypotheses",
     "groups"}`` in the default grouping mode, or ``{"expert_hypotheses", "classifications"}`` under
-    ``--classification``."""
+    ``--classification``.
+    """
     save_dir.mkdir(parents=True, exist_ok=True)
     traj = {
         "model": model_name,
@@ -646,24 +643,46 @@ async def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--capsules-dir", type=Path, default=ROOT / "capsules")
     ap.add_argument("--out", type=Path, default=ROOT / "insights_generated.json")
-    ap.add_argument("--n-capsules", type=int, default=DEFAULT_N_CAPSULES,
-                    help="How many capsules to place in the shared working directory")
-    ap.add_argument("--only", action="append", default=None,
-                    help="Only capsules whose id contains this substring (repeatable). Overrides --n-capsules.")
+    ap.add_argument(
+        "--n-capsules",
+        type=int,
+        default=DEFAULT_N_CAPSULES,
+        help="How many capsules to place in the shared working directory",
+    )
+    ap.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        help="Only capsules whose id contains this substring (repeatable). Overrides --n-capsules.",
+    )
     ap.add_argument("--model", default=DEFAULT_MODEL, help="litellm model name (keys via .env)")
     ap.add_argument("--temperature", type=float, default=1.0)
-    ap.add_argument("--explore-steps", type=int, default=DEFAULT_EXPLORE_STEPS,
-                    help="Max code cells the shared agent may run over all capsules")
+    ap.add_argument(
+        "--explore-steps",
+        type=int,
+        default=DEFAULT_EXPLORE_STEPS,
+        help="Max code cells the shared agent may run over all capsules",
+    )
     ap.add_argument("--exec-timeout", type=int, default=DEFAULT_EXEC_TIMEOUT, help="Per-cell timeout (s)")
-    ap.add_argument("--save-traj", type=Path, default=ROOT / "insights",
-                    help="Dir for the run trajectory JSON (run.json). Pass --no-save-traj to disable.")
+    ap.add_argument(
+        "--save-traj",
+        type=Path,
+        default=ROOT / "insights",
+        help="Dir for the run trajectory JSON (run.json). Pass --no-save-traj to disable.",
+    )
     ap.add_argument("--no-save-traj", action="store_true", help="Disable trajectory saving")
     ap.add_argument("--dataset", default=DEFAULT_DATASET, help="HF dataset for expert (ground-truth) hypotheses")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Materialize the batch and print the explore + generation prompts, then exit (no LLM/kernel)")
-    ap.add_argument("--classification", action="store_true",
-                    help="Classify each study along fixed axes (study_design, temporal_structure, "
-                         "biological_context, comparison_axis) instead of grouping files across capsules")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Materialize the batch and print the explore + generation prompts, then exit (no LLM/kernel)",
+    )
+    ap.add_argument(
+        "--classification",
+        action="store_true",
+        help="Classify each study along fixed axes (study_design, temporal_structure, "
+        "biological_context, comparison_axis) instead of grouping files across capsules",
+    )
     args = ap.parse_args()
 
     load_env()
@@ -713,7 +732,7 @@ async def main() -> None:
                 gen_prompt = build_gen_prompt(layout.seed_listing(), file_paths, transcript)
                 generated = await generate_groups(model, gen_prompt)
                 summary, groups = generated.summary, generated.groups
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             status, err = "error", f"{type(e).__name__}: {e}"
             if args.classification:
                 classifications = []
@@ -730,25 +749,39 @@ async def main() -> None:
                 warnings.append(err)
             output = {"expert_hypotheses": expert_hypotheses, "classifications": results}
             n_datasets = sum(len(c["datasets"]) for c in results)
-            print(f"[{status}] classified {len(results)}/{len(layout.files)} capsules into {n_datasets} datasets"
-                  + (f"  ({len(warnings)} warnings)" if warnings else "")
-                  + (f"  err={err}" if err else ""))
+            print(
+                f"[{status}] classified {len(results)}/{len(layout.files)} capsules into {n_datasets} datasets"
+                + (f"  ({len(warnings)} warnings)" if warnings else "")
+                + (f"  err={err}" if err else "")
+            )
         else:
             results, warnings = reconcile_groups(layout, groups)
             if err:
                 warnings.append(err)
             output = {"summary": summary, "expert_hypotheses": expert_hypotheses, "groups": results}
             n_grouped = sum(len(g["files"]) for g in results if g["label"] != "(ungrouped)")
-            print(f"[{status}] {n_grouped}/{len(file_paths)} files grouped into {len(results)} groups"
-                  + (f"  ({len(warnings)} warnings)" if warnings else "")
-                  + (f"  err={err}" if err else ""))
+            print(
+                f"[{status}] {n_grouped}/{len(file_paths)} files grouped into {len(results)} groups"
+                + (f"  ({len(warnings)} warnings)" if warnings else "")
+                + (f"  err={err}" if err else "")
+            )
 
         args.out.write_text(json.dumps(output, indent=2))
         print(f"\nWrote {args.out}")
 
         if not args.no_save_traj:
-            write_trajectory(args.save_traj, layout, args.model, args.explore_steps, transcript,
-                             gen_prompt, output, warnings, status, err)
+            write_trajectory(
+                args.save_traj,
+                layout,
+                args.model,
+                args.explore_steps,
+                transcript,
+                gen_prompt,
+                output,
+                warnings,
+                status,
+                err,
+            )
             print(f"Wrote trajectory {args.save_traj / 'run.json'}")
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

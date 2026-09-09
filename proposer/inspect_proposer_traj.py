@@ -40,7 +40,12 @@ from typing import Any
 
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
 BLUE, CYAN, YELLOW, GREEN, RED, MAGENTA = (
-    "\033[34m", "\033[36m", "\033[33m", "\033[32m", "\033[31m", "\033[35m",
+    "\033[34m",
+    "\033[36m",
+    "\033[33m",
+    "\033[32m",
+    "\033[31m",
+    "\033[35m",
 )
 WIDTH = 100
 _color = True
@@ -56,8 +61,10 @@ def box(title: str, body: str, color: str = "") -> str:
     head = f"{c(color, BOLD)}┌─ {title} {'─' * max(0, WIDTH - len(title) - 4)}{c(RESET)}"
     out = [head]
     for raw in body.rstrip("\n").split("\n"):
-        for wrapped in textwrap.wrap(raw, WIDTH - 2, drop_whitespace=False, replace_whitespace=False) or [""]:
-            out.append(f"{c(color)}│{c(RESET)} {wrapped}")
+        out.extend(
+            f"{c(color)}│{c(RESET)} {wrapped}"
+            for wrapped in textwrap.wrap(raw, WIDTH - 2, drop_whitespace=False, replace_whitespace=False) or [""]
+        )
     out.append(f"{c(color)}└{line}{c(RESET)}")
     return "\n".join(out)
 
@@ -80,7 +87,7 @@ def load_trajectories(path: Path) -> list[dict[str, Any]]:
     for f in files:
         try:
             data = json.loads(f.read_text())
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"warning: skipping {f.name}: {e}", file=sys.stderr)
             continue
         # Per-capsule trajectory files are dicts; skip aggregate --out files (a list
@@ -116,15 +123,17 @@ def _turns_str(t: dict[str, Any]) -> str:
 def print_trajectory(traj: dict[str, Any], show_prompt: bool) -> None:
     status = traj.get("status", "?")
     print()
-    print(box(
-        f"CAPSULE {traj.get('capsule_id', '?')}",
-        f"mode={traj.get('mode')}   model={traj.get('model')}   "
-        f"status={c(_status_color(status), BOLD)}{status}{c(RESET)}   "
-        f"input_files={traj.get('n_input_files')}\n"
-        + (f"warnings: {traj['warnings']}\n" if traj.get("warnings") else "")
-        + (f"error: {c(RED)}{traj['error']}{c(RESET)}" if traj.get("error") else ""),
-        BLUE,
-    ))
+    print(
+        box(
+            f"CAPSULE {traj.get('capsule_id', '?')}",
+            f"mode={traj.get('mode')}   model={traj.get('model')}   "
+            f"status={c(_status_color(status), BOLD)}{status}{c(RESET)}   "
+            f"input_files={traj.get('n_input_files')}\n"
+            + (f"warnings: {traj['warnings']}\n" if traj.get("warnings") else "")
+            + (f"error: {c(RED)}{traj['error']}{c(RESET)}" if traj.get("error") else ""),
+            BLUE,
+        )
+    )
 
     # Exploration trajectory (agent mode).
     steps = traj.get("explore_steps") or []
@@ -156,8 +165,10 @@ def list_trajectories(trajs: list[dict[str, Any]]) -> None:
         used, mx, _ = _turns(t)
         turns = f"{used}/{mx}" if mx else str(used)
         expert = (t.get("expert_hypothesis") or "")[:60]
-        print(f"{i:>3}  {c(_status_color(status))}{status:<8}{c(RESET)} {t.get('mode', '?'):<8} "
-              f"{turns:>7}  {t.get('capsule_id', '?')[:13]}…  {c(DIM)}{expert}{c(RESET)}")
+        print(
+            f"{i:>3}  {c(_status_color(status))}{status:<8}{c(RESET)} {t.get('mode', '?'):<8} "
+            f"{turns:>7}  {t.get('capsule_id', '?')[:13]}…  {c(DIM)}{expert}{c(RESET)}"
+        )
 
 
 # ── HTML rendering (all trajectories, sidebar picker — mirrors inspect_trajectory.py --html) ──
@@ -178,29 +189,36 @@ def _html_traj_body(t: dict[str, Any], show_prompt: bool) -> str:
         f"status=<span class='st-{_h(status)}'>{_h(status)}</span> · input_files={_h(t.get('n_input_files'))}"
         + turns_html
         + (f" · warnings: {_h(t['warnings'])}" if t.get("warnings") else "")
-        + (f"<br><span class='err'>error: {_h(t['error'])}</span>" if t.get("error") else "") + "</p>",
+        + (f"<br><span class='err'>error: {_h(t['error'])}</span>" if t.get("error") else "")
+        + "</p>",
     ]
     steps = t.get("explore_steps") or []
     if steps:
         parts.append(f"<h3>Data exploration · {_h(_turns_str(t))}</h3>")
-        for s in steps:
-            parts.append(f"<div class='cell'><div class='lbl'>cell {s['step']} · code</div>"
-                         f"<pre class='code'>{_h(s['code'])}</pre>"
-                         f"<div class='lbl'>output</div><pre class='out'>{_h(s['output'])}</pre></div>")
+        parts.extend(
+            f"<div class='cell'><div class='lbl'>cell {s['step']} · code</div>"
+            f"<pre class='code'>{_h(s['code'])}</pre>"
+            f"<div class='lbl'>output</div><pre class='out'>{_h(s['output'])}</pre></div>"
+            for s in steps
+        )
     elif t.get("mode") == "agent":
         parts.append("<p class='warn'>(agent mode but no exploration cells were recorded)</p>")
 
     if show_prompt and t.get("generation_prompt"):
-        parts.append("<h3>Generation prompt</h3>"
-                     f"<pre class='prompt'>{_h(t['generation_prompt'])}</pre>")
+        parts.append(f"<h3>Generation prompt</h3><pre class='prompt'>{_h(t['generation_prompt'])}</pre>")
 
     if t.get("expert_hypothesis"):
-        parts.append("<h3>Expert hypothesis <span class='sub'>(dataset ground truth)</span></h3>"
-                     f"<div class='expert'>{_h(t['expert_hypothesis'])}</div>")
+        parts.append(
+            "<h3>Expert hypothesis <span class='sub'>(dataset ground truth)</span></h3>"
+            f"<div class='expert'>{_h(t['expert_hypothesis'])}</div>"
+        )
 
     hyps = t.get("hypotheses") or []
-    parts.append(f"<h3>Generated hypotheses · {len(hyps)}</h3><ol class='gen'>"
-                 + "".join(f"<li>{_h(h)}</li>" for h in hyps) + "</ol>")
+    parts.append(
+        f"<h3>Generated hypotheses · {len(hyps)}</h3><ol class='gen'>"
+        + "".join(f"<li>{_h(h)}</li>" for h in hyps)
+        + "</ol>"
+    )
     return "\n".join(parts)
 
 
@@ -235,8 +253,8 @@ def write_html(trajs: list[dict[str, Any]], out: Path, show_prompt: bool) -> Non
  ol.gen li{{background:#eefaf0;border-left:4px solid #2e9e4f;padding:8px 12px;margin:8px 0;border-radius:4px}}
  .st-ok{{color:#2e9e4f}} .st-skipped{{color:#e0a800}} .st-error{{color:#c00}}
 </style></head><body><div id='wrap'>
-<div id='side'><h1>Proposer · {len(trajs)} capsules</h1>{''.join(links)}</div>
-<div id='main'>{''.join(panels)}</div></div>
+<div id='side'><h1>Proposer · {len(trajs)} capsules</h1>{"".join(links)}</div>
+<div id='main'>{"".join(panels)}</div></div>
 <script>
  function show(i){{document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
   document.getElementById('p'+i).style.display='block';
@@ -245,7 +263,7 @@ def write_html(trajs: list[dict[str, Any]], out: Path, show_prompt: bool) -> Non
   document.getElementById('main').scrollTop=0;}}
  show(0);
 </script></body></html>"""
-    out.write_text(doc)
+    out.write_text(doc, encoding="utf-8")
     print(f"Wrote {out}  ({len(trajs)} trajectories)")
 
 
@@ -256,7 +274,9 @@ def main() -> None:
     ap.add_argument("--only", default=None, help="Show trajectories whose capsule id contains this substring")
     ap.add_argument("--list", action="store_true", help="List all trajectories and exit")
     ap.add_argument("--prompt", action="store_true", help="Also include the full generation prompt")
-    ap.add_argument("--html", metavar="FILE", type=Path, default=None, help="Write an HTML page instead of terminal output")
+    ap.add_argument(
+        "--html", metavar="FILE", type=Path, default=None, help="Write an HTML page instead of terminal output"
+    )
     ap.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
     args = ap.parse_args()
 

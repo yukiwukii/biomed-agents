@@ -37,7 +37,7 @@ Idempotent: guarded on the HYPOTEST_DROP_LONG_PATCH marker in nemo_rl_setup.sh.
 import sys
 
 path = sys.argv[1]
-src = open(path).read()
+src = open(path, encoding="utf-8").read()
 
 # The training flatten CALL BLOCK (no comment) -- identical in grpo_train and
 # async_grpo_train. The other batched_message_log_to_flat_message calls use
@@ -62,9 +62,7 @@ if n == 0:
 
 # Insert the drop call BEFORE every training flatten (sync + async). No step arg,
 # so the text is identical at both sites; a module-level counter labels the log.
-call = (
-    "                    _hypotest_drop_long(repeated_batch)  # HYPOTEST_DROP_LONG_PATCH\n"
-) + anchor
+call = ("                    _hypotest_drop_long(repeated_batch)  # HYPOTEST_DROP_LONG_PATCH\n") + anchor
 src = src.replace(anchor, call)  # all occurrences
 
 helper = '''
@@ -128,5 +126,5 @@ if marker not in src:
     raise SystemExit("grpo_train def not found; cannot place the helper.")
 src = src.replace(marker, helper + marker.lstrip("\n"), 1)
 
-open(path, "w").write(src)
+open(path, "w", encoding="utf-8").write(src)
 print("patched %s (%d training-flatten site(s): sync + async)" % (path, n))

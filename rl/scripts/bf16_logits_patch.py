@@ -39,7 +39,7 @@ for HYPOTEST_BF16_LOGITS.
 import sys
 
 path = sys.argv[1]
-src = open(path).read()
+src = open(path, encoding="utf-8").read()
 
 anchor = """        mp_policy=MixedPrecisionPolicy(
             param_dtype=dtype,
@@ -95,5 +95,5 @@ if marker not in src:
     raise SystemExit("setup_distributed def not found; cannot place the helper.")
 src = src.replace(marker, helper + marker.lstrip("\n"), 1)
 
-open(path, "w").write(src)
+open(path, "w", encoding="utf-8").write(src)
 print("patched", path)

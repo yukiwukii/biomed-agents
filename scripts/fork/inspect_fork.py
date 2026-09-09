@@ -36,7 +36,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "eval"))
 
 # Reuse the trajectory/rubric rendering from the general trajectory inspector.
-from inspect_trajectory import (  # noqa: E402
+from inspect_trajectory import (
     _HTML_CSS,
     _h,
     _html_result_text,
@@ -288,8 +288,7 @@ def _round_strip_html(chain: "Chain", current: Round) -> str:
         cell = (r.info or {}).get("fork_cell")
         cls = "round-pill current" if r is current else "round-pill"
         pills.append(
-            f'<span class="{cls}" onclick="selectTraj({r.panel_idx})">'
-            f"r{r.number} · cell {_h(_fmt(cell))}</span>"
+            f'<span class="{cls}" onclick="selectTraj({r.panel_idx})">r{r.number} · cell {_h(_fmt(cell))}</span>'
         )
     # Joined outside the f-string: a backslash-escaped quote inside an f-string expression
     # is a SyntaxError before Python 3.12, and CI still builds on 3.11.
@@ -307,7 +306,7 @@ def _fork_meta_html(info, chain: "Chain | None" = None, rnd: "Round | None" = No
         f'<span class="fork-stat">fork cell: <b>{_h(info.get("fork_cell"))}</b></span>',
         f'<span class="fork-stat">vs. original: {_score_span(old, new)}</span>',
         f'<span class="fork-stat">replayed/generated: <b>{_h(info.get("n_replayed"))}</b>'
-        f'+<b>{_h(info.get("n_generated"))}</b> of {_h(info.get("n_steps_total"))}</span>',
+        f"+<b>{_h(info.get('n_generated'))}</b> of {_h(info.get('n_steps_total'))}</span>",
     ]
     # [PATCH 27] Chain-specific stats. `fork_floor` is what the previous round's fork cell
     # was — the boundary below which this round's grade could not flag anything.
@@ -324,9 +323,7 @@ def _fork_meta_html(info, chain: "Chain | None" = None, rnd: "Round | None" = No
     fws_old = info.get("old_first_wrong_step")
     fws_new = info.get("new_first_wrong_step")
     if fws_old is not None or fws_new is not None:
-        stats.append(
-            f'<span class="fork-stat">first wrong step: <b>{_h(fws_old)}</b> → <b>{_h(fws_new)}</b></span>'
-        )
+        stats.append(f'<span class="fork-stat">first wrong step: <b>{_h(fws_old)}</b> → <b>{_h(fws_new)}</b></span>')
 
     parts = []
     if chain is not None and rnd is not None:
@@ -339,8 +336,8 @@ def _fork_meta_html(info, chain: "Chain | None" = None, rnd: "Round | None" = No
     if n_replayed:
         parts.append(
             f'<div class="frozen-note">Steps <b>0–{_h(n_replayed - 1)}</b> were replayed verbatim from '
-            f'<b>{_h(info.get("parent_traj_id") or info.get("source_traj_id") or "the parent")}</b> and are frozen. '
-            f'The policy took over at step <b>{_h(n_replayed)}</b> (notebook cell <b>{_h(cell)}</b>), '
+            f"<b>{_h(info.get('parent_traj_id') or info.get('source_traj_id') or 'the parent')}</b> and are frozen. "
+            f"The policy took over at step <b>{_h(n_replayed)}</b> (notebook cell <b>{_h(cell)}</b>), "
             f"and this round's grade only flags wrong steps from that cell onward.</div>"
         )
 
@@ -350,8 +347,10 @@ def _fork_meta_html(info, chain: "Chain | None" = None, rnd: "Round | None" = No
 
     answer = (info.get("new_answer") or "").strip()
     if answer:
-        parts.append('<div class="fork-answer-label">Regenerated answer</div>')
-        parts.append(f'<div class="fork-answer">{_html_result_text(answer)}</div>')
+        parts.extend((
+            '<div class="fork-answer-label">Regenerated answer</div>',
+            f'<div class="fork-answer">{_html_result_text(answer)}</div>',
+        ))
 
     return f'<div class="fork-meta">{"".join(parts)}</div>'
 
@@ -396,9 +395,7 @@ def write_html(forks_dir: Path, out: Path) -> None:
         </button>""")
 
             head = (
-                f"{_h(chain.root)} · round {r.number} of {len(chain.rounds)}"
-                if len(chain.rounds) > 1
-                else _h(r.name)
+                f"{_h(chain.root)} · round {r.number} of {len(chain.rounds)}" if len(chain.rounds) > 1 else _h(r.name)
             )
             meta = (
                 f"index {i} &nbsp;·&nbsp; {len(r.traj.steps)} steps &nbsp;·&nbsp; {_h(r.name)} "
@@ -446,15 +443,17 @@ function selectTraj(idx) {{
 </body>
 </html>"""
 
-    out.write_text(page)
+    out.write_text(page, encoding="utf-8")
     # Forks are single-shot now, so n_rounds == n_chains for anything freshly produced; the
     # "across N chains" phrasing only says anything for the chained runs under archive/.
     summary = f"{n_rounds} fork(s)" if n_rounds == n_chains else f"{n_rounds} round(s) across {n_chains} chain(s)"
     print(f"Wrote {out} ({summary})")
     for chain in chains:
-        print(f"  {chain.root:<22} {' → '.join(_fmt(v) for v in chain.trace):<32} "
-              f"cells {[(r.info or {}).get('fork_cell') for r in chain.rounds]} "
-              f"stopped: {chain.stop_reason or '?'}")
+        print(
+            f"  {chain.root:<22} {' → '.join(_fmt(v) for v in chain.trace):<32} "
+            f"cells {[(r.info or {}).get('fork_cell') for r in chain.rounds]} "
+            f"stopped: {chain.stop_reason or '?'}"
+        )
 
 
 if __name__ == "__main__":

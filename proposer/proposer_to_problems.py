@@ -74,26 +74,24 @@ def main() -> None:
             hyp = rub["hypothesis"]
             rubric_text, total = format_rubric(hyp, criteria)
             pid = uuid.uuid5(_NS, f"{cid}:{j}")
-            rows.append(
-                {
-                    "id": str(pid),
-                    "hypothesis": hyp,
-                    "protocol": "",
-                    "answer": None,
-                    "rubric": rubric_text,
-                    "max_points": total,
-                    "input_data_path": data_dir,
-                    "task_style": "question",
-                    "nb_primary_language": "python",
-                    "metadata": {
-                        "source": "proposer/hypotheses_generated",
-                        "capsule_id": cid,
-                        "hypothesis_index": j,
-                        "rubric_mode": cap.get("rubric_mode"),
-                        "expert_hypothesis": cap.get("expert_hypothesis"),
-                    },
-                }
-            )
+            rows.append({
+                "id": str(pid),
+                "hypothesis": hyp,
+                "protocol": "",
+                "answer": None,
+                "rubric": rubric_text,
+                "max_points": total,
+                "input_data_path": data_dir,
+                "task_style": "question",
+                "nb_primary_language": "python",
+                "metadata": {
+                    "source": "proposer/hypotheses_generated",
+                    "capsule_id": cid,
+                    "hypothesis_index": j,
+                    "rubric_mode": cap.get("rubric_mode"),
+                    "expert_hypothesis": cap.get("expert_hypothesis"),
+                },
+            })
 
     with args.output.open("w") as f:
         for r in rows:

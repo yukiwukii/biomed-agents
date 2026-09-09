@@ -46,7 +46,7 @@ class ProblemInstance(BaseModel):
         return data
 
     @model_validator(mode="after")
-    def check_accepted_required_for_hypothesis(self) -> "ProblemInstance":
+    def check_accepted_required_for_hypothesis(self) -> ProblemInstance:
         if self.task_style == "hypothesis" and self.accepted is None:
             raise ValueError("accepted (answer) is required when task_style='hypothesis'")
         return self

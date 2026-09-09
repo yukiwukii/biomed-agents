@@ -9,6 +9,7 @@ import urllib.request
 from uuid import UUID
 
 import pytest
+from huggingface_hub import get_token
 from jupyter_client.kernelspec import KernelSpecManager, NoSuchKernel
 
 from hypotest.env import config as cfg
@@ -27,15 +28,25 @@ IN_GITHUB_ACTIONS: bool = os.getenv("GITHUB_ACTIONS") == "true"
 requires_openai = pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
 
 
-def skip_if_hub_unreachable() -> None:
-    """Skip the calling test when huggingface.co cannot be reached.
+def skip_if_hub_dataset_unavailable() -> None:
+    """Skip the calling test when the gated HF dataset cannot be fetched.
 
-    Called from inside the test rather than used as a marker so that a genuine
-    dataset error (renamed, gated, schema drift) still FAILS -- only a transport
-    failure skips. Set HYPOTEST_SKIP_NETWORK_TESTS=1 to skip unconditionally.
+    EdisonScientific/bixbench_hypothesis is a GATED dataset: the Hub returns 200
+    for its metadata but refuses the download without an accepted-terms token. So
+    a missing HF_TOKEN is an access problem, not a transport one, and CI has no
+    token. Both that and an unreachable Hub skip; anything else -- a rename, a
+    schema change, a genuinely broken loader -- still FAILS, which is the point of
+    the test.
+
+    Set HYPOTEST_SKIP_NETWORK_TESTS=1 to skip unconditionally.
     """
     if os.getenv("HYPOTEST_SKIP_NETWORK_TESTS") == "1":
         pytest.skip("HYPOTEST_SKIP_NETWORK_TESTS=1")
+    # get_token() is the authoritative check: it covers HF_TOKEN, the legacy
+    # env vars, AND a stored `huggingface-cli login` token under ~/.cache. An
+    # env-var-only check would skip on a machine that is in fact logged in.
+    if not get_token():
+        pytest.skip("no HuggingFace token; EdisonScientific/bixbench_hypothesis is gated")
     try:
         urllib.request.urlopen("https://huggingface.co", timeout=5).close()
     except OSError as exc:

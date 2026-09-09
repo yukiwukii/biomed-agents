@@ -47,7 +47,7 @@ keeps working.
 import sys
 
 path = sys.argv[1]
-src = open(path).read()
+src = open(path, encoding="utf-8").read()
 
 anchor = """        serving_chat_kwargs = serving_chat_default_kwargs | self.cfg["vllm_cfg"].get(
             "http_server_serving_chat_kwargs", dict()
@@ -59,7 +59,9 @@ if anchor not in src:
         "nemo_rl/models/generation/vllm/vllm_worker_async.py:~484."
     )
 
-patched = anchor + """
+patched = (
+    anchor
+    + """
         # HYPOTEST_CHAT_TEMPLATE_PATCH: a path here is a PATH, not a template.
         # OpenAIServingChat wants the content; vLLM's api_server calls
         # load_chat_template() first, and this code path does not. Without this,
@@ -97,6 +99,7 @@ patched = anchor + """
                         flush=True,
                     )
 """
+)
 
-open(path, "w").write(src.replace(anchor, patched, 1))
+open(path, "w", encoding="utf-8").write(src.replace(anchor, patched, 1))
 print("patched", path)

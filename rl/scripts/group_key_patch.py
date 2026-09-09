@@ -37,7 +37,7 @@ guarded on the HYPOTEST_GROUP_KEY_PATCH marker in nemo_rl_setup.sh.
 import sys
 
 path = sys.argv[1]
-src = open(path).read()
+src = open(path, encoding="utf-8").read()
 
 if "HYPOTEST_GROUP_KEY_PATCH" in src:
     print("[HYPOTEST_GROUP_KEY_PATCH] already applied; skipping")
@@ -88,5 +88,5 @@ patched = (
 )
 
 src = src.replace(anchor, patched, 1)
-open(path, "w").write(src)
+open(path, "w", encoding="utf-8").write(src)
 print("[HYPOTEST_GROUP_KEY_PATCH] applied: GRPO grouping now keys on the initial prompt")

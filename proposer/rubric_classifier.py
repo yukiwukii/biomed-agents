@@ -10,11 +10,13 @@ model call classifies every criterion belonging to a single rubric at once —
 that keeps the criteria in their natural context (the hypothesis + siblings)
 and is far cheaper than one call per criterion.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+from itertools import starmap
 from pathlib import Path
 from typing import Literal
 
@@ -48,7 +50,7 @@ def load_env(path: Path = ROOT / ".env") -> None:
     """Populate os.environ from a KEY=VALUE .env file (does not overwrite)."""
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -147,4 +149,4 @@ async def classify_many(
         async with sem:
             return await classify_rubric(model, hyp, crit)
 
-    return await asyncio.gather(*(run(hyp, crit) for hyp, crit in jobs))
+    return await asyncio.gather(*starmap(run, jobs))

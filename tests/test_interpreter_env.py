@@ -452,7 +452,7 @@ class TestInterpreterEnvRunCell:
 
         original_execute = interpreter_env.state.execute_and_add_cell
 
-        async def mock_execute_and_add_cell(code, cell_idx=None, timeout=None):  # noqa: ASYNC109
+        async def mock_execute_and_add_cell(code, cell_idx=None, timeout=None):
             nonlocal captured_timeout
             captured_timeout = timeout
             return await original_execute(code, cell_idx, timeout)

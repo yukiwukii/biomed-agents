@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import operator
 import re
 from pathlib import Path
 
@@ -77,18 +78,30 @@ def crit_rows(old: list | None, new: list | None) -> tuple[str, int]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--judge", type=Path, default=ROOT / "benchmark_results/judge_output.regrade.anthropic_claude-sonnet-4-6.json")
+    ap.add_argument(
+        "--judge", type=Path, default=ROOT / "benchmark_results/judge_output.regrade.anthropic_claude-sonnet-4-6.json"
+    )
     ap.add_argument("--out", type=Path, default=None)
-    ap.add_argument("--sort", choices=["task", "delta"], default="task",
-                    help="Order cards by task/rep (default) or by absolute score change")
-    ap.add_argument("--compare", choices=["old", "parent"], default="old",
-                    help="'old' = original judge vs new judge (uses old_criteria); "
-                    "'parent' = pre-fork parent vs post-fork, both this model (uses parent_criteria)")
+    ap.add_argument(
+        "--sort",
+        choices=["task", "delta"],
+        default="task",
+        help="Order cards by task/rep (default) or by absolute score change",
+    )
+    ap.add_argument(
+        "--compare",
+        choices=["old", "parent"],
+        default="old",
+        help="'old' = original judge vs new judge (uses old_criteria); "
+        "'parent' = pre-fork parent vs post-fork, both this model (uses parent_criteria)",
+    )
     args = ap.parse_args()
 
     data = json.loads(args.judge.read_text())
     model = next(iter(data.values())).get("model", "?") if data else "?"
-    out = args.out or args.judge.with_suffix("").with_name(args.judge.stem.replace("judge_output", "judge_diff") + ".html")
+    out = args.out or args.judge.with_suffix("").with_name(
+        args.judge.stem.replace("judge_output", "judge_diff") + ".html"
+    )
 
     if args.compare == "parent":
         title = f"Pre-fork (parent) vs post-fork judge — both {model}"
@@ -113,7 +126,7 @@ def main() -> None:
         rows, changed = crit_rows(before_crit, d.get("criteria"))
         items.append((abs(new_s - old_s), tid, d, old_s, new_s, rows, changed, before_raw, before_crit))
     if args.sort == "delta":
-        items.sort(key=lambda x: x[0], reverse=True)
+        items.sort(key=operator.itemgetter(0), reverse=True)
     else:
         items.sort(key=lambda x: task_key(x[1]))
 
@@ -128,7 +141,9 @@ def main() -> None:
     for _a, tid, d, old_s, new_s, rows, changed, before_raw, before_crit in items:
         arrow = "↑" if new_s > old_s else ("↓" if new_s < old_s else "=")
         hcls = "up" if new_s > old_s else ("down" if new_s < old_s else "same")
-        parent_id = f" &nbsp;<span class='rid'>parent {esc(d.get('parent_id'))}</span>" if args.compare == "parent" else ""
+        parent_id = (
+            f" &nbsp;<span class='rid'>parent {esc(d.get('parent_id'))}</span>" if args.compare == "parent" else ""
+        )
         fb, fa = earliest_fws(before_crit), earliest_fws(d.get("criteria"))
         fws_span = (
             f"<span class='fwsagg'>first wrong: "
@@ -138,9 +153,9 @@ def main() -> None:
 <div class="card" data-changed="{1 if new_s != old_s else 0}">
   <div class="hd {hcls}" onclick="this.parentNode.classList.toggle('open')">
     <span class="tid">{esc(tid)}{parent_id}</span>
-    <span class="rid">{esc(d.get('run_id'))}</span>
-    <span class="score">{old_s:.2f} ({esc(before_raw)}/{esc(d.get('max_score'))})
-      &rarr; {new_s:.2f} ({esc(d.get('raw_score'))}/{esc(d.get('max_score'))}) {arrow}</span>
+    <span class="rid">{esc(d.get("run_id"))}</span>
+    <span class="score">{old_s:.2f} ({esc(before_raw)}/{esc(d.get("max_score"))})
+      &rarr; {new_s:.2f} ({esc(d.get("raw_score"))}/{esc(d.get("max_score"))}) {arrow}</span>
     {fws_span}
     <span class="chg">{changed} criteria changed</span>
   </div>
@@ -195,7 +210,7 @@ def main() -> None:
     &nbsp;<a href="#" onclick="toggleAll(false);return false">collapse all</a>
   </div>
 </header>
-<div class="wrap">{''.join(cards)}</div>
+<div class="wrap">{"".join(cards)}</div>
 <script>
   function filt() {{
     const only = document.getElementById('only').checked;

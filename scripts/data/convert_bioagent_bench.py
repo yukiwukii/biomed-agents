@@ -74,8 +74,9 @@ import json
 import re
 import sys
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -122,8 +123,7 @@ RESULT_RULES = {
         "row order and formatting may differ."
     ),
     "viral-metagenomics": (
-        "results_match is true only if Bottlenose dolphin adenovirus 1 is explicitly reported under the "
-        "Viruses domain."
+        "results_match is true only if Bottlenose dolphin adenovirus 1 is explicitly reported under the Viruses domain."
     ),
 }
 
@@ -283,7 +283,9 @@ def rubric_deseq(truth: Path) -> str:
 
 def rubric_evolution(truth: Path) -> str:
     rows = read_csv(truth / "variants_shared.csv")
-    variants = [f"{r['CHROM']}:{r['POS']} {r['REF']}>{r['ALT']} ({r['GENE']}, {r['IMPACT']} {r['EFFECT']})" for r in rows]
+    variants = [
+        f"{r['CHROM']}:{r['POS']} {r['REF']}>{r['ALT']} ({r['GENE']}, {r['IMPACT']} {r['EFFECT']})" for r in rows
+    ]
     return render(
         "evolution",
         "   Award the points only if at least one variant the agent reports as shared by both evolved lines\n"
@@ -432,10 +434,7 @@ EXAMPLE_OVERRIDES = {
         "CHROM,POS,REF,ALT,GENE,IMPACT,EFFECT,STATUS\n"
         "NODE_1_length_50000_cov_5.000000,12345,A,G,EXAMPLE_00001,MODERATE,missense_variant,shared"
     ),
-    "metagenomics": (
-        "OTU,Kingdom,Phylum,JP4D,JC1A\n"
-        "0000000,Bacteria,Examplephylum,12.3456789012345,6.78901234567890"
-    ),
+    "metagenomics": ("OTU,Kingdom,Phylum,JP4D,JC1A\n0000000,Bacteria,Examplephylum,12.3456789012345,6.78901234567890"),
     # Upstream relabelled the cell type here ("Endothelial cell" -> "Perivascular cell") but left the
     # gene, fold change and both p-values verbatim from truth row 1.
     "single-cell": (
@@ -494,9 +493,7 @@ def truth_tokens(truth_dir: Path) -> set[str]:
                 cell = cell.strip().strip('"')
                 if cell.casefold() in GENERIC_TOKENS:
                     continue
-                if len(cell) >= 8 and not cell.replace(".", "").isdigit():
-                    tokens.add(cell)
-                elif len(cell) >= 10:  # long numerics: p-values, coordinates, abundances
+                if (len(cell) >= 8 and not cell.replace(".", "").isdigit()) or len(cell) >= 10:
                     tokens.add(cell)
     return tokens
 
@@ -621,7 +618,7 @@ def main() -> None:
                 continue
             problems.append(problem)
             print(f"[ok] {task_id}" + ("  (example sanitized)" if task_id in EXAMPLE_OVERRIDES else ""))
-        except Exception as exc:  # noqa: BLE001 — report and keep going
+        except Exception as exc:
             skipped.append(f"{task_id} ({type(exc).__name__}: {exc})")
 
     with args.out_jsonl.open("w") as fh:

@@ -185,7 +185,7 @@ def load_language_map() -> dict[str, str]:
         from datasets import load_dataset  # noqa: PLC0415  (optional, and slow to import)
 
         ds = load_dataset(LANGUAGE_DATASET)["train"]
-    except Exception as e:  # noqa: BLE001 - offline/no-auth is expected; fall back to the default
+    except Exception as e:
         print(f"[warn] could not read {LANGUAGE_DATASET} ({type(e).__name__}: {e});")
         print(f"[warn] every problem will get nb_primary_language={DEFAULT_LANGUAGE!r}. Use --no-hf to silence.")
         return {}
@@ -198,16 +198,25 @@ def load_language_map() -> dict[str, str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dataset-dir", type=Path, default=ROOT / "capsules" / "bixbench",
-                    help="Clone of futurehouse/BixBench (holds the jsonl and the CapsuleData-* dirs)")
-    ap.add_argument("--in-jsonl", type=Path, default=None,
-                    help="Upstream jsonl (default: <dataset-dir>/BixBench.jsonl, else bixbench.jsonl)")
-    ap.add_argument("--out-jsonl", type=Path, default=None,
-                    help="Converted jsonl (default: <dataset-dir>/bixbench.jsonl)")
-    ap.add_argument("--only", nargs="*", default=None,
-                    help="Only these short_ids, question_ids or capsule uuids")
-    ap.add_argument("--no-hf", action="store_true",
-                    help=f"Skip the {LANGUAGE_DATASET} lookup; everything gets {DEFAULT_LANGUAGE}")
+    ap.add_argument(
+        "--dataset-dir",
+        type=Path,
+        default=ROOT / "capsules" / "bixbench",
+        help="Clone of futurehouse/BixBench (holds the jsonl and the CapsuleData-* dirs)",
+    )
+    ap.add_argument(
+        "--in-jsonl",
+        type=Path,
+        default=None,
+        help="Upstream jsonl (default: <dataset-dir>/BixBench.jsonl, else bixbench.jsonl)",
+    )
+    ap.add_argument(
+        "--out-jsonl", type=Path, default=None, help="Converted jsonl (default: <dataset-dir>/bixbench.jsonl)"
+    )
+    ap.add_argument("--only", nargs="*", default=None, help="Only these short_ids, question_ids or capsule uuids")
+    ap.add_argument(
+        "--no-hf", action="store_true", help=f"Skip the {LANGUAGE_DATASET} lookup; everything gets {DEFAULT_LANGUAGE}"
+    )
     ap.add_argument("--dry-run", action="store_true", help="Report what would be written")
     args = ap.parse_args()
 
@@ -237,7 +246,9 @@ def main() -> None:
     if dupes := [i for i, n in seen_ids.items() if n > 1]:
         sys.exit(f"question_id is not unique — {len(dupes)} colliding problem id(s), e.g. {dupes[:3]}")
 
-    missing_capsules = sorted({p["input_data_path"] for p in problems if not (dataset_dir / p["input_data_path"]).is_dir()})
+    missing_capsules = sorted({
+        p["input_data_path"] for p in problems if not (dataset_dir / p["input_data_path"]).is_dir()
+    })
     for name in missing_capsules:
         print(f"[warn] no {name}/ under {dataset_dir} — extract CapsuleFolder-*.zip, or the server will fail on it")
 
@@ -249,7 +260,7 @@ def main() -> None:
             shutil.copy2(in_jsonl, preserved)
             print(f"Preserved upstream {in_jsonl.name} -> {preserved}")
         out_jsonl.parent.mkdir(parents=True, exist_ok=True)
-        out_jsonl.write_text("\n".join(json.dumps(p) for p in problems) + "\n")
+        out_jsonl.write_text("\n".join(json.dumps(p) for p in problems) + "\n", encoding="utf-8")
 
     capsules = {p["input_data_path"] for p in problems}
     modes = Counter(p["metadata"]["eval_mode"] for p in problems)

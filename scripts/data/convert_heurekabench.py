@@ -168,7 +168,7 @@ def load_env(path: Path = ROOT / ".env") -> None:
     """Populate os.environ from a KEY=VALUE .env file (does not overwrite)."""
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -178,9 +178,7 @@ def load_env(path: Path = ROOT / ".env") -> None:
 
 def parse_oe_questions(text: str) -> list[dict[str, str]]:
     """Split an ``oe_question`` blob into [{num, question, answer}] (upstream's parse_oe_questions)."""
-    return [
-        {"num": num, "question": q.strip(), "answer": a.strip()} for num, q, a in OE_PATTERN.findall(text)
-    ]
+    return [{"num": num, "question": q.strip(), "answer": a.strip()} for num, q, a in OE_PATTERN.findall(text)]
 
 
 def parse_mcq_questions(text: str) -> list[dict[str, Any]]:
@@ -224,10 +222,7 @@ def build_hypothesis(subs: list[dict[str, Any]], q_type: str) -> str:
 def build_protocol(data: dict[str, str]) -> str:
     """The <objectives> block: the data-file manifest, by the basename the agent will see."""
     lines = [f"- `{Path(path).name}`: {desc}" for path, desc in data.items()]
-    return (
-        "## Data Files\n"
-        "The following files are available in your working directory:\n\n" + "\n".join(lines)
-    )
+    return "## Data Files\nThe following files are available in your working directory:\n\n" + "\n".join(lines)
 
 
 def build_rubric(task_label: str, subs: list[dict[str, Any]], q_type: str) -> tuple[str, int]:
@@ -246,12 +241,7 @@ def build_rubric(task_label: str, subs: list[dict[str, Any]], q_type: str) -> tu
             body = f"   Ground-truth answer: {sub['answer']}"
         criteria.append(f"{head}\n{body}")
 
-    rubric = (
-        f"RUBRIC: {task_label}\n\n"
-        f"Total Points: {max_score}/{max_score}\n\n"
-        f"{preamble}\n\n"
-        + "\n\n".join(criteria)
-    )
+    rubric = f"RUBRIC: {task_label}\n\nTotal Points: {max_score}/{max_score}\n\n{preamble}\n\n" + "\n\n".join(criteria)
     return rubric, max_score
 
 

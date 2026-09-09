@@ -39,6 +39,7 @@ def strip_ansi(text: str) -> str:
 
 # ── shared data extraction ───────────────────────────────────────────────────
 
+
 def extract_action_calls(action):
     """Return list of (tool_name, args_dict)."""
     if action is None:
@@ -70,10 +71,10 @@ def extract_thinking(action) -> str:
     # Strip leading <think> tag if present
     text = content.strip()
     if text.startswith("<think>"):
-        text = text[len("<think>"):].lstrip()
+        text = text[len("<think>") :].lstrip()
     # Everything before </think> is the thinking
     if "</think>" in text:
-        return text[:text.index("</think>")].strip()
+        return text[: text.index("</think>")].strip()
     # No closing tag — treat whole content as thinking only if no tool calls
     inner_calls = getattr(inner, "tool_calls", None) or []
     if not inner_calls:
@@ -91,6 +92,7 @@ def load_trajectories(path: Path):
 
 # ── terminal renderer ────────────────────────────────────────────────────────
 
+
 def _term_box(title: str, body: str, color: str = "") -> str:
     title_colored = f"{c(color, BOLD)}{title}{c(RESET)}"
     top = f"┌─ {title_colored} {'─' * max(0, WIDTH - 4 - len(title))}┐"
@@ -98,8 +100,7 @@ def _term_box(title: str, body: str, color: str = "") -> str:
     for raw_line in body.splitlines():
         clean = strip_ansi(raw_line)
         wrapped = textwrap.wrap(clean, width=WIDTH - 4) if clean.strip() else [""]
-        for w in wrapped:
-            lines.append(f"│ {w:<{WIDTH - 3}}│")
+        lines.extend(f"│ {w:<{WIDTH - 3}}│" for w in wrapped)
     bottom = f"└{'─' * (WIDTH - 1)}┘"
     return "\n".join([top, *lines, bottom])
 
@@ -128,8 +129,7 @@ def _term_fmt_action(action) -> str:
             v_str = str(v)
             if "\n" in v_str or len(v_str) > 80:
                 indented = textwrap.indent(v_str, "    ")
-                lines.append(f"  {c(CYAN)}{k}{c(RESET)} =")
-                lines.append(indented)
+                lines.extend((f"  {c(CYAN)}{k}{c(RESET)} =", indented))
             else:
                 lines.append(f"  {c(CYAN)}{k}{c(RESET)} = {v_str}")
         lines.append(")")
@@ -176,7 +176,7 @@ def _term_fmt_rubric(criteria, first_wrong_step) -> str:
         # Biomni criteria carry an A/B/C level (no numeric score in the observation);
         # show the level. Hypotest criteria show the integer points.
         level = str(cr.get("level") or "").strip().upper()
-        badge = level if level else f"{int(cr.get('score') or 0)} pt"
+        badge = level or f"{int(cr.get('score') or 0)} pt"
         lines.append(f"{mark} [{badge}] {c(color, BOLD)}{cr.get('criterion', '')}{c(RESET)}")
         just = str(cr.get("justification", "")).strip()
         if just:
@@ -215,7 +215,7 @@ def _print_term_result(role: str, text: str) -> None:
     print(_term_box(f"RESULT [{role}]", text.strip(), GREEN))
 
 
-def print_trajectory(path: Path, traj_idx: int, step_filter: Optional[int]) -> None:
+def print_trajectory(path: Path, traj_idx: int, step_filter: int | None) -> None:
     trajs = load_trajectories(path)
 
     if traj_idx >= len(trajs):
@@ -244,9 +244,7 @@ def print_trajectory(path: Path, traj_idx: int, step_filter: Optional[int]) -> N
     last_step = steps[-1]
     for step in steps:
         done_str = f"{c(GREEN)}done{c(RESET)}" if step.done else f"{c(DIM)}running{c(RESET)}"
-        reward_str = (
-            f"{c(GREEN)}{step.reward}{c(RESET)}" if step.reward > 0 else f"{c(DIM)}{step.reward}{c(RESET)}"
-        )
+        reward_str = f"{c(GREEN)}{step.reward}{c(RESET)}" if step.reward > 0 else f"{c(DIM)}{step.reward}{c(RESET)}"
         print()
         print(f"{c(BOLD)}  ── STEP {step.timestep} ──  reward={reward_str}  {done_str}{c(RESET)}")
         print()
@@ -272,9 +270,9 @@ def print_trajectory(path: Path, traj_idx: int, step_filter: Optional[int]) -> N
                     content = strip_ansi(str(getattr(msg, "content", msg) or ""))
                     remaining = content
                     while "<think>" in remaining and "</think>" in remaining:
-                        before = remaining[:remaining.index("<think>")]
-                        inner = remaining[remaining.index("<think>") + len("<think>"):remaining.index("</think>")]
-                        remaining = remaining[remaining.index("</think>") + len("</think>"):]
+                        before = remaining[: remaining.index("<think>")]
+                        inner = remaining[remaining.index("<think>") + len("<think>") : remaining.index("</think>")]
+                        remaining = remaining[remaining.index("</think>") + len("</think>") :]
                         if before.strip():
                             print(_term_box(f"RESULT [{role}]", before.strip(), GREEN))
                             print()
@@ -517,6 +515,7 @@ h1 { font-size: 1.1rem; color: #f8fafc; margin-bottom: 4px; }
 .rstep-note { color: #cbd5e1; word-break: break-word; }
 """
 
+
 def _h(text: str) -> str:
     """HTML-escape."""
     return html.escape(str(text))
@@ -527,8 +526,7 @@ def _html_messages(msgs) -> str:
     for msg in msgs:
         role = getattr(msg, "role", "?")
         content = strip_ansi(str(getattr(msg, "content", msg) or ""))
-        parts.append(f'<div class="role-tag">[{_h(role)}]</div>')
-        parts.append(f'<div>{_h(content)}</div>')
+        parts.extend((f'<div class="role-tag">[{_h(role)}]</div>', f"<div>{_h(content)}</div>"))
     return "\n".join(parts)
 
 
@@ -565,7 +563,7 @@ def _derive_first_wrong_steps(criteria: list) -> None:
 
 
 def _fws_suffix(cr: dict) -> str:
-    """" (derived)" when the viewer computed the step itself — see _derive_first_wrong_steps."""
+    """ " (derived)" when the viewer computed the step itself — see _derive_first_wrong_steps."""
     return " (derived)" if cr.get("_fws_derived") else ""
 
 
@@ -581,7 +579,7 @@ def _extract_rubric(text: str):
     if end <= start:
         return None
     try:
-        data = json.loads(text[start:end + 1])
+        data = json.loads(text[start : end + 1])
     except Exception:
         return None
     criteria = data.get("criteria")
@@ -671,9 +669,9 @@ def _html_messages_with_thinking(msgs) -> str:
         rendered = ""
         remaining = content
         while "<think>" in remaining and "</think>" in remaining:
-            before = remaining[:remaining.index("<think>")]
-            inner = remaining[remaining.index("<think>") + len("<think>"):remaining.index("</think>")]
-            remaining = remaining[remaining.index("</think>") + len("</think>"):]
+            before = remaining[: remaining.index("<think>")]
+            inner = remaining[remaining.index("<think>") + len("<think>") : remaining.index("</think>")]
+            remaining = remaining[remaining.index("</think>") + len("</think>") :]
             if before.strip():
                 rendered += f"<div>{_h(before)}</div>"
             rendered += f'<div class="section-label thinking-label" style="margin-top:6px">Thinking</div><div class="box thinking-box">{_h(inner.strip())}</div>'
@@ -694,8 +692,10 @@ def _html_action(action) -> str:
         for k, v in args.items():
             v_str = str(v)
             if "\n" in v_str or len(v_str) > 80:
-                lines.append(f'  <span class="arg-name">{_h(k)}</span> =')
-                lines.append(f'<div class="code-block">{_h(v_str)}</div>')
+                lines.extend((
+                    f'  <span class="arg-name">{_h(k)}</span> =',
+                    f'<div class="code-block">{_h(v_str)}</div>',
+                ))
             else:
                 lines.append(f'  <span class="arg-name">{_h(k)}</span> = {_h(v_str)}')
         lines.append(")")
@@ -703,7 +703,7 @@ def _html_action(action) -> str:
     return "\n\n".join(parts)
 
 
-def _html_trajectory_body(traj, step_filter: Optional[int]) -> str:
+def _html_trajectory_body(traj, step_filter: int | None) -> str:
     """Render the inner step-by-step body for a single trajectory."""
     steps = traj.steps
     if step_filter is not None:
@@ -773,7 +773,7 @@ def _html_trajectory_body(traj, step_filter: Optional[int]) -> str:
     return "".join(body_parts)
 
 
-def write_html(path: Path, step_filter: Optional[int], out: Path) -> None:
+def write_html(path: Path, step_filter: int | None, out: Path) -> None:
     """Write all trajectories into a single page with a sidebar picker."""
     trajs = load_trajectories(path)
 
@@ -838,7 +838,7 @@ function selectTraj(idx) {{
 </body>
 </html>"""
 
-    out.write_text(page)
+    out.write_text(page, encoding="utf-8")
     print(f"Wrote {out} ({len(trajs)} trajectories)")
 
 

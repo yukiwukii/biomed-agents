@@ -188,7 +188,7 @@ def _item_text(item: dict[str, Any]) -> str:
 
 def stats_from_jsonl(path: Path, seed_tokens: int) -> list[TrajStat]:
     out: list[TrajStat] = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         rec = json.loads(line)
@@ -246,16 +246,18 @@ class Summary:
         for k in ("min", "median", "mean", "p90", "p95", "p99", "max"):
             print(f"    {k:<7}{d[k]:>12,.0f}")
         steps = self._d([s.steps for s in st])
-        print(f"\nsteps/episode:  min {steps['min']:.0f}  median {steps['median']:.0f}"
-              f"  mean {steps['mean']:.1f}  max {steps['max']:.0f}")
+        print(
+            f"\nsteps/episode:  min {steps['min']:.0f}  median {steps['median']:.0f}"
+            f"  mean {steps['mean']:.1f}  max {steps['max']:.0f}"
+        )
         gen = sum(s.thinking_and_code for s in st)
         tool = sum(s.tool_results for s in st)
         seed = sum(s.seed for s in st)
         tot = gen + tool + seed
-        print(f"composition:    seed {seed / tot:>5.1%}   generated {gen / tot:>5.1%}"
-              f"   tool results {tool / tot:>5.1%}")
-        print(f"images:         {sum(s.images for s in st):,} tokens"
-              f"  ({sum(s.images for s in st) / tot:.1%})")
+        print(
+            f"composition:    seed {seed / tot:>5.1%}   generated {gen / tot:>5.1%}   tool results {tool / tot:>5.1%}"
+        )
+        print(f"images:         {sum(s.images for s in st):,} tokens  ({sum(s.images for s in st) / tot:.1%})")
         per_step = [s.total / s.steps for s in st if s.steps]
         if per_step:
             print(f"per step:       median {statistics.median(per_step):,.0f} tokens")
@@ -263,9 +265,11 @@ class Summary:
         real = [s.usage_input for s in st if s.usage_input]
         if real:
             r = self._d(real)
-            print("\nusage.input_tokens -- REAL Qwen tokenizer, includes seed +"
-                  " tool schema + template.\nThis is the number to size the cap"
-                  f" against:\n    (n={r['n']})")
+            print(
+                "\nusage.input_tokens -- REAL Qwen tokenizer, includes seed +"
+                " tool schema + template.\nThis is the number to size the cap"
+                f" against:\n    (n={r['n']})"
+            )
             for k in ("min", "median", "mean", "p90", "p95", "p99", "max"):
                 print(f"    {k:<7}{r[k]:>12,.0f}")
             # Pair PER TRAJECTORY. Dividing median(real) by median(total) compares
@@ -273,10 +277,13 @@ class Summary:
             # silently reports a ratio for trajectories that were never measured.
             paired = [s.total / s.usage_input for s in st if s.usage_input and s.total]
             r_med = statistics.median(paired)
-            print(f"\n    cl100k / usage.input, paired per trajectory (n={len(paired)}"
-                  f" of {len(st)}): {min(paired):.3f}-{max(paired):.3f}, median {r_med:.3f}")
-            print(f"    -> a cl100k figure UNDER-states the real count; multiply by"
-                  f" ~{1 / r_med:.2f} before sizing a cap.")
+            print(
+                f"\n    cl100k / usage.input, paired per trajectory (n={len(paired)}"
+                f" of {len(st)}): {min(paired):.3f}-{max(paired):.3f}, median {r_med:.3f}"
+            )
+            print(
+                f"    -> a cl100k figure UNDER-states the real count; multiply by ~{1 / r_med:.2f} before sizing a cap."
+            )
 
     def cap_table(self) -> None:
         """What fraction of episodes a given cap would truncate."""
@@ -294,8 +301,12 @@ class Summary:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("sources", nargs="+", type=Path, help=".pkl and/or rollouts .jsonl")
-    ap.add_argument("--seed-tokens", type=int, default=1900,
-                    help="flat seed added to sources that did not persist one (default 1900)")
+    ap.add_argument(
+        "--seed-tokens",
+        type=int,
+        default=1900,
+        help="flat seed added to sources that did not persist one (default 1900)",
+    )
     ap.add_argument("--caps", action="store_true", help="print truncation rate by cap")
     ap.add_argument("--per-traj", action="store_true", help="print every trajectory")
     args = ap.parse_args()
@@ -305,8 +316,9 @@ def main() -> int:
         if not src.exists():
             print(f"skip (missing): {src}")
             continue
-        stats = stats_from_jsonl(src, args.seed_tokens) if src.suffix == ".jsonl" \
-            else stats_from_pkl(src, args.seed_tokens)
+        stats = (
+            stats_from_jsonl(src, args.seed_tokens) if src.suffix == ".jsonl" else stats_from_pkl(src, args.seed_tokens)
+        )
         s = Summary(label=str(src), stats=stats)
         summaries.append(s)
         s.report()
@@ -326,8 +338,7 @@ def main() -> int:
                 continue
             tt = [x.total for x in s.stats]
             name = s.label if len(s.label) <= 42 else "..." + s.label[-39:]
-            print(f"{name:<44}{len(tt):>5}{statistics.median(tt):>10,.0f}"
-                  f"{statistics.mean(tt):>10,.0f}{max(tt):>10,}")
+            print(f"{name:<44}{len(tt):>5}{statistics.median(tt):>10,.0f}{statistics.mean(tt):>10,.0f}{max(tt):>10,}")
         base, *rest = [s for s in summaries if s.stats]
         bm = statistics.median([x.total for x in base.stats])
         for s in rest:

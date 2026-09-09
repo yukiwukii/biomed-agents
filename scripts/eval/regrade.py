@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import operator
 import pickle
 import re
 from difflib import SequenceMatcher
@@ -142,7 +143,7 @@ def build_mapping(trajs, results_dir: Path):
             continue
         ratio, name, d = max(
             ((SequenceMatcher(None, ans, sol).ratio(), name, d) for name, d, sol in infos),
-            key=lambda x: x[0],
+            key=operator.itemgetter(0),
         )
         mapping.append((t, name, d, ratio))
     return mapping
@@ -168,9 +169,7 @@ def parse_criterion_max_scores(rubric: str) -> list[int]:
     Covers both hypotest criterion layouts: numbered ``N. (X points) …`` and bixbench's
     ``* X points: …`` bullets.
     """
-    levels = [
-        max(int(v) for v in re.findall(r"[A-Z]=(-?\d+)", m.group(1))) for m in _BIOMNI_LEVELS.finditer(rubric)
-    ]
+    levels = [max(int(v) for v in re.findall(r"[A-Z]=(-?\d+)", m.group(1))) for m in _BIOMNI_LEVELS.finditer(rubric)]
     return levels or [int(m.group(1) or m.group(2)) for m in _HYPOTEST_CRITERION_POINTS.finditer(rubric)]
 
 
@@ -307,9 +306,7 @@ async def main() -> None:
             "score": new_score,
             "old_raw_score": old_raw,
             "old_score": old_score,
-            "criteria": derive_first_wrong_step(
-                [c.model_dump() for c in rubric.criteria], rubric_text(d["prompt"])
-            ),
+            "criteria": derive_first_wrong_step([c.model_dump() for c in rubric.criteria], rubric_text(d["prompt"])),
             "old_criteria": d.get("criteria"),
         }
         flag = "  <-- low match!" if ratio < args.min_match else ""

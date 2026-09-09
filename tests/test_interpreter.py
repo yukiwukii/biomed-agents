@@ -11,7 +11,6 @@ from hypotest.env.kernel_server import MessageType, NBLanguage
 
 from .conftest import requires_matplotlib
 
-
 _PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
 

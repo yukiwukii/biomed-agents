@@ -147,7 +147,7 @@ def load_env(path: Path = ROOT / ".env") -> None:
     """Populate os.environ from a KEY=VALUE .env file (does not overwrite)."""
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -164,7 +164,7 @@ def load_expert_hypotheses(dataset_name: str) -> dict[str, str]:
     """
     try:
         ds = load_dataset(dataset_name, split="train")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"warning: could not load expert hypotheses from {dataset_name}: {type(e).__name__}: {e}")
         return {}
     return {str(row["id"]): row["hypothesis"] for row in ds}
@@ -184,10 +184,9 @@ class Capsule:
 
 def _capsule_id(name: str) -> str:
     """Strip CapsuleData-/CapsuleFolder- prefix and .zip suffix down to the UUID."""
-    stem = name[:-4] if name.endswith(".zip") else name
+    stem = name.removesuffix(".zip")
     for prefix in ("CapsuleData-", "CapsuleFolder-"):
-        if stem.startswith(prefix):
-            stem = stem[len(prefix) :]
+        stem = stem.removeprefix(prefix)
     return stem
 
 
@@ -246,7 +245,7 @@ def _preview_xlsx(data: bytes) -> str:
         import openpyxl  # noqa: PLC0415  (lazy: heavy import)
 
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return f"(xlsx not previewable: {type(e).__name__})"
     parts: list[str] = []
     for name in wb.sheetnames[:6]:
@@ -259,7 +258,9 @@ def _preview_xlsx(data: bytes) -> str:
         dims = f"{ws.max_row}x{ws.max_column}" if ws.max_row else "?"
         header = " | ".join(rows[0]) if rows else ""
         sample = " | ".join(rows[1]) if len(rows) > 1 else ""
-        parts.append(f"  sheet '{name}' ({dims})\n    columns: {header}" + (f"\n    e.g.:    {sample}" if sample else ""))
+        parts.append(
+            f"  sheet '{name}' ({dims})\n    columns: {header}" + (f"\n    e.g.:    {sample}" if sample else "")
+        )
     wb.close()
     return "\n".join(parts)[:MAX_FILE_PREVIEW_CHARS]
 
@@ -297,16 +298,16 @@ def preview_file(rel_name: str, size: int, reader) -> str:
 
     try:
         data = reader()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return f"{header} (unreadable: {type(e).__name__})"
 
-    if suffix in (".xlsx", ".xls"):
+    if suffix in {".xlsx", ".xls"}:
         return f"{header}\n{_preview_xlsx(data)}"
-    if suffix in (".faa", ".fna", ".fa", ".fasta"):
+    if suffix in {".faa", ".fna", ".fa", ".fasta"}:
         return f"{header} {_preview_sequences(data, 'FASTA')}"
-    if suffix in (".fastq", ".fq"):
+    if suffix in {".fastq", ".fq"}:
         return f"{header} {_preview_sequences(data, 'FASTQ')}"
-    if suffix in (".csv", ".tsv", ".txt", ".json", ".gmt", ".vcf", ".treefile", ".mafft", ".clipkit", ""):
+    if suffix in {".csv", ".tsv", ".txt", ".json", ".gmt", ".vcf", ".treefile", ".mafft", ".clipkit", ""}:
         return f"{header}\n{_preview_text(data)}"
     # Unknown extension: try a short text head; harmless if binary.
     return f"{header}\n{_preview_text(data, max_lines=4)}"
@@ -436,13 +437,13 @@ def _paper_text_from_pdf(path: Path, max_pages: int = 12) -> str:
         return ""
     try:
         reader = pypdf.PdfReader(str(path))
-    except Exception:  # noqa: BLE001 — a corrupt PDF must not abort generation
+    except Exception:
         return ""
     out = []
     for page in reader.pages[:max_pages]:
         try:
             out.append(page.extract_text() or "")
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
     return _clean_pdf_text("\n".join(out))
 
@@ -462,7 +463,7 @@ def extract_paper_text(cap: Capsule) -> str:
     for xml_path in sorted(pdir.glob("*.fulltext.xml")):
         try:
             text = _paper_text_from_jats(xml_path)
-        except Exception:  # noqa: BLE001 — malformed XML falls through to the PDF
+        except Exception:
             text = ""
         if text:
             break
@@ -606,10 +607,15 @@ def _extract_code(text: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-def _build_explore_prompt(listing: str, transcript: list[tuple[str, str]], step: int, max_steps: int,
-                          paper_note: str = "") -> str:
-    parts = [EXPLORE_INSTRUCTIONS + paper_note, f"\n(You have run {step}/{max_steps} cells.)",
-             "\n=== FILES IN WORKDIR ===", listing]
+def _build_explore_prompt(
+    listing: str, transcript: list[tuple[str, str]], step: int, max_steps: int, paper_note: str = ""
+) -> str:
+    parts = [
+        EXPLORE_INSTRUCTIONS + paper_note,
+        f"\n(You have run {step}/{max_steps} cells.)",
+        "\n=== FILES IN WORKDIR ===",
+        listing,
+    ]
     if transcript:
         parts.append("\n=== YOUR EXPLORATION SO FAR ===")
         for i, (code, out) in enumerate(transcript, 1):
@@ -895,9 +901,7 @@ class GeneratedRubric(BaseModel):
 
 def render_rubric(rub: GeneratedRubric) -> str:
     """Render a rubric into the dataset's bulleted ``* N point(s): ...`` string form."""
-    return "\n".join(
-        f"* {it.points} {'point' if it.points == 1 else 'points'}: {it.criterion}" for it in rub.criteria
-    )
+    return "\n".join(f"* {it.points} {'point' if it.points == 1 else 'points'}: {it.criterion}" for it in rub.criteria)
 
 
 def _parse_rubric(text: str) -> GeneratedRubric:
@@ -1017,27 +1021,40 @@ async def main() -> None:
     ap.add_argument("--capsules-dir", type=Path, default=ROOT / "capsules")
     ap.add_argument("--out", type=Path, default=ROOT / "hypotheses_generated.json")
     ap.add_argument("--n", type=int, default=3, help="Hypotheses to propose per capsule")
-    ap.add_argument("--rubrics", action="store_true",
-                    help="Also generate a dataset-style grading rubric per proposed hypothesis "
-                         "(an extra LLM call per hypothesis).")
+    ap.add_argument(
+        "--rubrics",
+        action="store_true",
+        help="Also generate a dataset-style grading rubric per proposed hypothesis (an extra LLM call per hypothesis).",
+    )
     ap.add_argument("--mode", choices=MODES, default="preview", help="Ingestion mode: static previews or live agent")
-    ap.add_argument("--rubric-mode", choices=MODES, default=None,
-                    help="Ingestion mode for rubric generation (default: same as --mode). Set to 'agent' to "
-                         "ground rubrics in a live data exploration even when hypotheses use 'preview'.")
+    ap.add_argument(
+        "--rubric-mode",
+        choices=MODES,
+        default=None,
+        help="Ingestion mode for rubric generation (default: same as --mode). Set to 'agent' to "
+        "ground rubrics in a live data exploration even when hypotheses use 'preview'.",
+    )
     ap.add_argument("--model", default=DEFAULT_MODEL, help="litellm model name (keys via .env)")
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--explore-steps", type=int, default=DEFAULT_EXPLORE_STEPS, help="agent mode: max code cells")
     ap.add_argument("--exec-timeout", type=int, default=DEFAULT_EXEC_TIMEOUT, help="agent mode: per-cell timeout (s)")
-    ap.add_argument("--save-traj", type=Path, default=ROOT / "proposer",
-                    help="Base dir for per-capsule trajectory JSON; written under <dir>/<mode>/ "
-                         "(e.g. proposer/agent/, proposer/preview/). Pass --no-save-traj to disable.")
+    ap.add_argument(
+        "--save-traj",
+        type=Path,
+        default=ROOT / "proposer",
+        help="Base dir for per-capsule trajectory JSON; written under <dir>/<mode>/ "
+        "(e.g. proposer/agent/, proposer/preview/). Pass --no-save-traj to disable.",
+    )
     ap.add_argument("--no-save-traj", action="store_true", help="Disable trajectory saving")
     ap.add_argument("--limit", type=int, default=None, help="Only process the first N capsules")
     ap.add_argument("--only", default=None, help="Only capsules whose id contains this substring")
     ap.add_argument("--dataset", default=DEFAULT_DATASET, help="HF dataset for expert (ground-truth) hypotheses")
-    ap.add_argument("--no-paper", action="store_true",
-                    help="Do not show the capsule's downloaded source paper to the model. By default the "
-                         "paper is included and the model is asked to propose hypotheses DISTINCT from it.")
+    ap.add_argument(
+        "--no-paper",
+        action="store_true",
+        help="Do not show the capsule's downloaded source paper to the model. By default the "
+        "paper is included and the model is asked to propose hypotheses DISTINCT from it.",
+    )
     ap.add_argument("--dry-run", action="store_true", help="Print the prompt for the first capsule and exit")
     args = ap.parse_args()
 
@@ -1080,8 +1097,9 @@ async def main() -> None:
         both modes see the same paper text on top of their own view of the data.
         """
         if mode == "agent":
-            ctx = await gather_context_agent(cap, model, args.explore_steps, args.exec_timeout,
-                                             include_paper=not args.no_paper)
+            ctx = await gather_context_agent(
+                cap, model, args.explore_steps, args.exec_timeout, include_paper=not args.no_paper
+            )
         else:
             ctx = gather_context_preview(cap)
         if not args.no_paper:
@@ -1118,16 +1136,21 @@ async def main() -> None:
                 if ctx.n_files == 0:
                     print(f"[skip] {cap.capsule_id}  (no usable input files — {ctx.warnings})")
                     return {
-                        "capsule_id": cap.capsule_id, "n_input_files": 0, "mode": args.mode,
-                        "status": "skipped", "error": "no usable input files",
-                        "expert_hypothesis": expert.get(cap.capsule_id), "hypotheses": [],
-                        "hypotheses_reasoning": None, "rubrics": None,
+                        "capsule_id": cap.capsule_id,
+                        "n_input_files": 0,
+                        "mode": args.mode,
+                        "status": "skipped",
+                        "error": "no usable input files",
+                        "expert_hypothesis": expert.get(cap.capsule_id),
+                        "hypotheses": [],
+                        "hypotheses_reasoning": None,
+                        "rubrics": None,
                     }
                 prompt = build_prompt(ctx, args.n)
                 hyps, hyp_reasoning = await generate_one(model, prompt, args.n)
                 status = "ok"
                 err = None
-            except Exception as e:  # noqa: BLE001 — record per-capsule failures, keep going
+            except Exception as e:
                 ctx = CapsuleContext(cap.capsule_id, "")
                 hyps, hyp_reasoning, status, err = [], None, "error", f"{type(e).__name__}: {e}"
 
@@ -1142,19 +1165,39 @@ async def main() -> None:
                 try:
                     rubric_ctx = ctx if rubric_mode == args.mode else await build_context(cap, rubric_mode)
                     rubrics = await generate_rubrics(model, rubric_ctx, hyps)
-                except Exception as e:  # noqa: BLE001
-                    err = f"{err}; rubric generation failed: {type(e).__name__}: {e}" if err \
+                except Exception as e:
+                    err = (
+                        f"{err}; rubric generation failed: {type(e).__name__}: {e}"
+                        if err
                         else f"rubric generation failed: {type(e).__name__}: {e}"
+                    )
 
-            print(f"[{status}] {cap.capsule_id}  ({len(hyps)} hypotheses"
-                  + (f", {len(rubrics)} rubrics [{rubric_mode}]" if rubrics is not None else "") + ")"
-                  + (f"  warnings={ctx.warnings}" if ctx.warnings else "")
-                  + (f"  err={err}" if err else ""))
+            print(
+                f"[{status}] {cap.capsule_id}  ({len(hyps)} hypotheses"
+                + (f", {len(rubrics)} rubrics [{rubric_mode}]" if rubrics is not None else "")
+                + ")"
+                + (f"  warnings={ctx.warnings}" if ctx.warnings else "")
+                + (f"  err={err}" if err else "")
+            )
             if not args.no_save_traj:
                 # Separate trajectories by mode: proposer/agent/ vs proposer/preview/.
-                write_trajectory(args.save_traj / args.mode, cap, ctx, args.mode, args.model, prompt, hyps,
-                                 hyp_reasoning, rubrics, rubric_mode if args.rubrics else None, rubric_ctx,
-                                 expert.get(cap.capsule_id), status, err, args.explore_steps)
+                write_trajectory(
+                    args.save_traj / args.mode,
+                    cap,
+                    ctx,
+                    args.mode,
+                    args.model,
+                    prompt,
+                    hyps,
+                    hyp_reasoning,
+                    rubrics,
+                    rubric_mode if args.rubrics else None,
+                    rubric_ctx,
+                    expert.get(cap.capsule_id),
+                    status,
+                    err,
+                    args.explore_steps,
+                )
             return {
                 "capsule_id": cap.capsule_id,
                 "n_input_files": ctx.n_files,

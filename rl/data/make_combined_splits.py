@@ -111,7 +111,7 @@ def main() -> None:
 
     # ---- deterministic pointer splits ----------------------------------------
     with (OUT / "train_bixbench.jsonl").open("w") as f:
-        for i in range(0, n_train):  # 0 .. 249
+        for i in range(n_train):  # 0 .. 249
             f.write(json.dumps(gym_line(i)) + "\n")
     with (OUT / "eval_hypotest.jsonl").open("w") as f:
         for i in range(n_train, n_train + n_eval):  # 250 .. 300
@@ -136,8 +136,10 @@ def main() -> None:
     }
     (OUT / "manifest_bixbench_hypotest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
-    print(f"OK: combined={n_train + n_eval}  train={n_train} (idx 0..{n_train-1})  "
-          f"eval={n_eval} (idx {n_train}..{n_train + n_eval - 1})  dropped_no_rubric={65 - n_eval}")
+    print(
+        f"OK: combined={n_train + n_eval}  train={n_train} (idx 0..{n_train - 1})  "
+        f"eval={n_eval} (idx {n_train}..{n_train + n_eval - 1})  dropped_no_rubric={65 - n_eval}"
+    )
     print(f"    -> {src.name}, train_bixbench.jsonl, eval_hypotest.jsonl, manifest_bixbench_hypotest.json")
 
 

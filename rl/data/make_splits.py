@@ -4,9 +4,11 @@
 NeMo Gym's training examples are not the problems themselves — they are pointers.
 Each line is::
 
-    {"task_idx": 12,
-     "responses_create_params": {"input": []},
-     "agent_ref": {"type": "responses_api_agents", "name": "hypotest_agent"}}
+    {
+        "task_idx": 12,
+        "responses_create_params": {"input": []},
+        "agent_ref": {"type": "responses_api_agents", "name": "hypotest_agent"},
+    }
 
 ``task_idx`` is fed straight to ``AviarySeedSessionRequest.task_idx`` and ends up
 at ``Dataset.get_new_env_by_idx(idx)`` on the dataset server, so it indexes *the
@@ -85,7 +87,7 @@ def gym_line(task_idx: int, agent_name: str) -> dict[str, Any]:
 
 def emit_jsonl(path: Path, task_indices: list[int], agent_name: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         for ti in task_indices:
             f.write(json.dumps(gym_line(ti, agent_name)) + "\n")
     eprint(f">> wrote {len(task_indices):4d} examples -> {path}")
@@ -110,7 +112,7 @@ def load_dataset_config(
     membership, which is why max_problems is an explicit, visible flag rather
     than something quietly adjusted.
     """
-    raw = yaml.safe_load(server_config_path.read_text())
+    raw = yaml.safe_load(server_config_path.read_text(encoding="utf-8"))
     if "dataset" not in raw:
         die(f"{server_config_path} has no top-level `dataset:` key.")
     ds = dict(raw["dataset"])
@@ -138,7 +140,9 @@ def main() -> None:
         help="server.yaml whose `dataset:` block defines the problem source and ordering.",
     )
     p.add_argument("--out-dir", type=Path, default=Path(__file__).resolve().parent)
-    p.add_argument("--agent-name", default=DEFAULT_AGENT_NAME, help="Must match the agent block name in the Gym config.")
+    p.add_argument(
+        "--agent-name", default=DEFAULT_AGENT_NAME, help="Must match the agent block name in the Gym config."
+    )
     p.add_argument("--seed", type=int, default=DEFAULT_SPLIT_SEED)
     p.add_argument("--eval-frac", type=float, default=DEFAULT_EVAL_FRAC)
     p.add_argument("--n-tiny", type=int, default=DEFAULT_N_TINY)
@@ -194,7 +198,7 @@ def main() -> None:
     rng = random.Random(args.seed)
     rng.shuffle(indices)
 
-    n_eval = int(round(n * args.eval_frac))
+    n_eval = round(n * args.eval_frac)
     if args.eval_frac > 0 and n_eval == 0:
         n_eval = 1
     if n_eval >= n:

@@ -110,8 +110,10 @@ class ExecutionConfig(BaseModel):
 
             # PATCH 10: append software-stack capabilities (item 6) after env capabilities (item 5)
             self.environment_capabilities_prompt = (
-                prompts.GPU_ENVIRONMENT_CAPABILITIES if self.has_gpu else prompts.CPU_ENVIRONMENT_CAPABILITIES
-            ) + "\n\n" + prompts.SOFTWARE_STACK_CAPABILITIES
+                (prompts.GPU_ENVIRONMENT_CAPABILITIES if self.has_gpu else prompts.CPU_ENVIRONMENT_CAPABILITIES)
+                + "\n\n"
+                + prompts.SOFTWARE_STACK_CAPABILITIES
+            )
 
     @classmethod
     def standard(cls, **overrides) -> "ExecutionConfig":

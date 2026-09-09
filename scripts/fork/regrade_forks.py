@@ -32,11 +32,10 @@ import argparse
 import asyncio
 import json
 import pickle
+import re
 import sys
 from pathlib import Path
 from statistics import mean, median
-
-import re
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "eval"))  # for `import regrade`
@@ -50,7 +49,8 @@ def prior_judgment_block(parent_id: str, parent: dict) -> str:
     ``parent`` is the evaluation of the *pre-fork* (parent) notebook — a DIFFERENT,
     earlier notebook than the forked one being graded — so it is framed as context,
     not as an evaluation of the current submission. The new judge is told to form
-    its own independent assessment of the forked notebook."""
+    its own independent assessment of the forked notebook.
+    """
     lines = [
         "\n\n<reference-evaluation>",
         "This submission is a FORK: it was branched from an earlier notebook and then "
@@ -65,11 +65,15 @@ def prior_judgment_block(parent_id: str, parent: dict) -> str:
         "Per-criterion (pre-fork notebook):",
     ]
     for i, c in enumerate(parent.get("criteria") or [], 1):
-        lines.append(f"{i}. {c.get('criterion', '')}")
-        lines.append(f"   pre-fork score: {c.get('score')}")
-        lines.append(f"   pre-fork justification: {c.get('justification', '')}")
-    lines.append("</reference-evaluation>")
-    lines.append("\nNow produce your own evaluation of the forked notebook in the required JSON format.")
+        lines.extend((
+            f"{i}. {c.get('criterion', '')}",
+            f"   pre-fork score: {c.get('score')}",
+            f"   pre-fork justification: {c.get('justification', '')}",
+        ))
+    lines.extend((
+        "</reference-evaluation>",
+        "\nNow produce your own evaluation of the forked notebook in the required JSON format.",
+    ))
     return "\n".join(lines)
 
 
@@ -106,9 +110,13 @@ async def main() -> None:
         "as a reference point. Sourced from the main regrade's judge_output json. Outputs get a "
         "'.prior' tag so they don't clobber the blind regrade.",
     )
-    ap.add_argument("--parent-judgment", type=Path, default=None,
-                    help="Main-regrade judge_output json keyed by parent traj_id "
-                    "(default: benchmark_results/judge_output.regrade.<model>.json)")
+    ap.add_argument(
+        "--parent-judgment",
+        type=Path,
+        default=None,
+        help="Main-regrade judge_output json keyed by parent traj_id "
+        "(default: benchmark_results/judge_output.regrade.<model>.json)",
+    )
     args = ap.parse_args()
 
     normalize = not args.no_normalize
@@ -181,15 +189,21 @@ async def main() -> None:
         old_list.append(old_score)
         new_list.append(new_score)
         delta = "  ↑" if new_score > old_score else ("  ↓" if new_score < old_score else "  =")
-        print(f"{name:32s} {old_score:5.2f} ({old_raw:2}/{max_score:2})  {new_score:5.2f} ({new_raw:2}/{max_score:2}){delta}")
+        print(
+            f"{name:32s} {old_score:5.2f} ({old_raw:2}/{max_score:2})  {new_score:5.2f} ({new_raw:2}/{max_score:2}){delta}"
+        )
 
     up = sum(1 for a, b in zip(old_list, new_list) if b > a)
     dn = sum(1 for a, b in zip(old_list, new_list) if b < a)
     eq = len(forks) - up - dn
     print("-" * 62)
     print(f"old mean {mean(old_list):.4f}  median {median(old_list):.4f}")
-    print(f"new mean {mean(new_list):.4f}  median {median(new_list):.4f}   mean delta {mean(b - a for a, b in zip(old_list, new_list)):+.4f}")
-    print(f"direction: up {up} ({up/len(forks):.0%})  down {dn} ({dn/len(forks):.0%})  same {eq} ({eq/len(forks):.0%})")
+    print(
+        f"new mean {mean(new_list):.4f}  median {median(new_list):.4f}   mean delta {mean(b - a for a, b in zip(old_list, new_list)):+.4f}"
+    )
+    print(
+        f"direction: up {up} ({up / len(forks):.0%})  down {dn} ({dn / len(forks):.0%})  same {eq} ({eq / len(forks):.0%})"
+    )
 
     if not args.write:
         print("\n(dry run — pass --write to save combined rewards json)")

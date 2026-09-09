@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ABLATION: fork once, injecting feedback from *every* criterion — not just the driving ones.
+r"""ABLATION: fork once, injecting feedback from *every* criterion — not just the driving ones.
 
 The baseline (``scripts/fork/fork_trajectory.py``) forks at the earliest per-criterion
 ``first_wrong_step`` and injects the ``feedback`` of only the criteria sitting at
@@ -66,7 +66,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # for `import fork_trajectory`
 
-import fork_trajectory as ft  # noqa: E402
+import fork_trajectory as ft
 
 
 def _feedback_order(crit: dict) -> int:

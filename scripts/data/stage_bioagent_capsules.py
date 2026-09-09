@@ -185,7 +185,7 @@ def extract(archive: Path, category_dir: Path) -> list[str]:
                 # silently letting one member clobber another.
                 print(f"      WARNING: duplicate basename in {archive.name}: {member.name}", flush=True)
             seen.add(member.name)
-            tar.extract(member, path=out_dir)  # noqa: S202 - names flattened to basenames above
+            tar.extract(member, path=out_dir)
             written.append(str((out_dir / member.name).relative_to(category_dir)))
     return sorted(written)
 
@@ -338,7 +338,7 @@ def main() -> None:
     for task in tasks:
         try:
             stage_task(task, capsule_root, args)
-        except Exception as exc:  # noqa: BLE001 — one bad task must not abort the rest
+        except Exception as exc:
             print(f"  [ERROR] {task['task_id']}: {type(exc).__name__}: {exc}", flush=True)
             failures.append(task["task_id"])
 
@@ -347,8 +347,11 @@ def main() -> None:
         manifest = write_manifest(capsule_root, all_tasks)
         print(f"\nManifest -> {manifest}", flush=True)
         used = shutil.disk_usage(capsule_root)
-        print(f"On disk: {human(sum(p.stat().st_size for p in capsule_root.rglob('*') if p.is_file()))} "
-              f"({human(used.free)} free)", flush=True)
+        print(
+            f"On disk: {human(sum(p.stat().st_size for p in capsule_root.rglob('*') if p.is_file()))} "
+            f"({human(used.free)} free)",
+            flush=True,
+        )
 
     if failures:
         print(f"\nFAILED: {failures}  (re-run to resume; completed files are skipped)", flush=True)
