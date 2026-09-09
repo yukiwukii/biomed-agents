@@ -780,14 +780,14 @@ in-process — no matching needed, since a round grades exactly one trajectory.
 
 Stop reasons, first one wins:
 
-| reason | condition |
-|---|---|
-| `full_reward` | normalized score reached 1.0 — every criterion satisfied |
-| `no_wrong_step` | no criterion flags a cell at or after the floor |
-| `truncated` | the round hit `max_steps` without submitting, so there is no new grade to fork on |
-| `no_room` | the fork step reached `AGENT_MAX_STEPS - 1` — nothing left to generate |
-| `cell_never_appended` | the flagged cell is never created in the parent's notebook |
-| `max_rounds` | the `--max-rounds` cap (new flag, default 6) |
+| reason                | condition                                                                         |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `full_reward`         | normalized score reached 1.0 — every criterion satisfied                          |
+| `no_wrong_step`       | no criterion flags a cell at or after the floor                                   |
+| `truncated`           | the round hit `max_steps` without submitting, so there is no new grade to fork on |
+| `no_room`             | the fork step reached `AGENT_MAX_STEPS - 1` — nothing left to generate            |
+| `cell_never_appended` | the flagged cell is never created in the parent's notebook                        |
+| `max_rounds`          | the `--max-rounds` cap (new flag, default 6)                                      |
 
 **Step budget is per round, replay included** — unchanged from the single-fork script, just now
 load-bearing. Each round is a fresh env with `max_steps = AGENT_MAX_STEPS` (50, from `.env`) and
@@ -861,14 +861,14 @@ panel, exactly as it did single forks.
 **Judge coverage.** Forking has always required a judge that emits both `relevant_steps` and
 `feedback`; this patch neither narrows nor widens that.
 
-| judge | `relevant_steps` | `feedback` | forkable | notes |
-|---|---|---|---|---|
-| `hypotest` | yes | yes | yes | the bixbench-hypothesis path `server.yaml` currently runs |
-| `biomni` | yes | yes | yes | A/B/C levels; its prompt is `.replace()`-derived from the hypotest tail, so it inherits the contract verbatim |
-| `heureka` | yes | yes | yes | own prompt, same field contract |
-| `biomystery` | anti-cheat evidence only | **no** | degenerate | one synthetic criterion whose steps flag *cheating*, not analysis errors, and no `feedback` key — a fork would land on a cheat step with no guidance |
-| `bixbench` | hardcoded `[]` | no | **no** | derivation always yields `None` → `SkipFork` |
-| `bioagent` | n/a (deterministic file scorer, `needs_model=False`) | no | **no** | same |
+| judge        | `relevant_steps`                                     | `feedback` | forkable   | notes                                                                                                                                                |
+| ------------ | ---------------------------------------------------- | ---------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hypotest`   | yes                                                  | yes        | yes        | the bixbench-hypothesis path `server.yaml` currently runs                                                                                            |
+| `biomni`     | yes                                                  | yes        | yes        | A/B/C levels; its prompt is `.replace()`-derived from the hypotest tail, so it inherits the contract verbatim                                        |
+| `heureka`    | yes                                                  | yes        | yes        | own prompt, same field contract                                                                                                                      |
+| `biomystery` | anti-cheat evidence only                             | **no**     | degenerate | one synthetic criterion whose steps flag *cheating*, not analysis errors, and no `feedback` key — a fork would land on a cheat step with no guidance |
+| `bixbench`   | hardcoded `[]`                                       | no         | **no**     | derivation always yields `None` → `SkipFork`                                                                                                         |
+| `bioagent`   | n/a (deterministic file scorer, `needs_model=False`) | no         | **no**     | same                                                                                                                                                 |
 
 The floor (`min_step`, `resume_from_step`, `score_metadata["resume_from_step"]`) and the chain
 driver are judge-agnostic and apply to all six — including any judge added later, since the floor
@@ -895,16 +895,16 @@ termination argument at all.
 - All 8 chain stop reasons driven with `fork_round` stubbed (no LLM, no kernel): each terminates
   for the expected reason, and fork cells are non-decreasing in every case.
 
-  | scenario | stop reason | fork cells |
-  |---|---|---|
-  | round 2 scores 1.0 | `full_reward` | `[4, 9]` |
-  | round 2's criteria all clean | `no_wrong_step` | `[4, 9]` |
-  | round 1 never submits | `truncated` | `[4]` |
-  | keeps finding a later wrong step, `--max-rounds 3` | `max_rounds` | `[4, 5, 6]` |
-  | **round 2 flags cell 2 after forking at cell 9** | `no_wrong_step` | `[4, 9]` |
-  | fork point reaches cell 49 (`AGENT_MAX_STEPS - 1`) | `no_room` | `[4]` |
-  | fork point reaches cell 48 — still 2 steps of room | continues | `[4, 48]` |
-  | target cell never appended in the parent | `cell_never_appended` | `[4]` |
+| scenario                                           | stop reason           | fork cells  |
+| -------------------------------------------------- | --------------------- | ----------- |
+| round 2 scores 1.0                                 | `full_reward`         | `[4, 9]`    |
+| round 2's criteria all clean                       | `no_wrong_step`       | `[4, 9]`    |
+| round 1 never submits                              | `truncated`           | `[4]`       |
+| keeps finding a later wrong step, `--max-rounds 3` | `max_rounds`          | `[4, 5, 6]` |
+| **round 2 flags cell 2 after forking at cell 9**   | `no_wrong_step`       | `[4, 9]`    |
+| fork point reaches cell 49 (`AGENT_MAX_STEPS - 1`) | `no_room`             | `[4]`       |
+| fork point reaches cell 48 — still 2 steps of room | continues             | `[4, 48]`   |
+| target cell never appended in the parent           | `cell_never_appended` | `[4]`       |
 
   The fifth row is the one that matters: without the floor that round would have forked
   *backwards* to cell 2 and the chain would never terminate.
@@ -1029,8 +1029,8 @@ wall-clock time and NFS I/O.
 BioMysteryBench, 90 problems, **155.4 GB** unpacked (the `data/*.zip` are stored, not compressed —
 1.00x inflation, so unpacked size equals the download):
 
-| capsule | size |
-|---|---|
+| capsule             | size    |
+| ------------------- | ------- |
 | `reccwgc4buredxvyz` | 27.5 GB |
 | `reccniibn7ary80hj` | 23.8 GB |
 | `recv1pkneurxhwpo9` | 17.6 GB |
@@ -1149,10 +1149,10 @@ Measured 2026-08-10, run 5 — `train()` died in `backward`:
 Changing `dtype=torch.float32` to the input dtype **alone** moves the multiply into bf16 and
 changes the gradient. Measured on `[1, 4096, 2048]`:
 
-| variant | bit-identical | differing elements | max abs diff |
-|---|---|---|---|
-| naive dtype swap | **no** | 2,097,311 / 8,388,608 | 1.56e-2 |
-| reorder (this patch) | **yes** | 0 / 8,388,608 | 0.0 |
+| variant              | bit-identical | differing elements    | max abs diff |
+| -------------------- | ------------- | --------------------- | ------------ |
+| naive dtype swap     | **no**        | 2,097,311 / 8,388,608 | 1.56e-2      |
+| reorder (this patch) | **yes**       | 0 / 8,388,608         | 0.0          |
 
 ### What this patch does
 
@@ -1221,11 +1221,11 @@ model sees. The notebook keeps them — this changes the *model's* view, not the
 tokens), but the GRPO path serves the policy with `language_model_only: true` — no vision tower —
 so vLLM tokenizes the base64 as **text**. Measured 2026-08-07 on a 5-task smoke run:
 
-| task | figure | total tokens | outcome |
-|---|---|---|---|
-| task_0 | 1 | 225,286 (194,763 base64) | HTTP 400 → died → reward 0.000 |
-| task_1 | 1 | 124,714 (101,573 base64) | HTTP 400 → died → reward 0.000 |
-| task_2/3/4 | 0 | 22k–42k | completed, scored |
+| task       | figure | total tokens             | outcome                        |
+| ---------- | ------ | ------------------------ | ------------------------------ |
+| task_0     | 1      | 225,286 (194,763 base64) | HTTP 400 → died → reward 0.000 |
+| task_1     | 1      | 124,714 (101,573 base64) | HTTP 400 → died → reward 0.000 |
+| task_2/3/4 | 0      | 22k–42k                  | completed, scored              |
 
 Perfect correlation: **every episode that drew a plot died; every one that didn't, finished.** The
 episodes are written to `rollouts.jsonl` with reward 0 and no `usage` block, so they are

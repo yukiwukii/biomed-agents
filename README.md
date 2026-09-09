@@ -182,19 +182,19 @@ optionally with the parent's evaluation supplied as reference context).
 
 ## Repo map
 
-| Path | What it is |
-|---|---|
-| `src/hypotest/env/` | Execution environment: Jupyter kernel lifecycle, notebook tools, filesystem tools |
-| `src/hypotest/env/judges/` | Per-benchmark grading. One module each, owning its prompt, schema and scoring. Adding a benchmark means adding a judge, never editing the env |
-| `src/hypotest/dataset_server.py` | Serves one environment per rollout over HTTP |
-| `src/hypotest/benchmark_agent.py` | Benchmark client; writes `rewards.json` + `trajectories.pkl` |
-| `scripts/fork/` | **The fork pipeline** — fork, ablation arm, inspect, re-grade, compare |
-| `scripts/eval/` | Judge-agnostic evaluation: re-grading, trajectory and judge-diff viewers |
-| `scripts/data/` | Converters turning each benchmark into capsules + `ProblemInstance` jsonl |
-| `proposer/` | Hypothesis-proposer subsystem: generate candidate hypotheses, then A/B whether showing the source paper helps |
-| `rl/` | GRPO training stack — **incomplete, see below** |
-| `examples/cluster/` | The run:ai orchestration we used. Site-specific reference, not a supported entry point |
-| `docs/patches.md` | Every local change to the upstream environment, with rationale and revert instructions |
+| Path                              | What it is                                                                                                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/hypotest/env/`               | Execution environment: Jupyter kernel lifecycle, notebook tools, filesystem tools                                                             |
+| `src/hypotest/env/judges/`        | Per-benchmark grading. One module each, owning its prompt, schema and scoring. Adding a benchmark means adding a judge, never editing the env |
+| `src/hypotest/dataset_server.py`  | Serves one environment per rollout over HTTP                                                                                                  |
+| `src/hypotest/benchmark_agent.py` | Benchmark client; writes `rewards.json` + `trajectories.pkl`                                                                                  |
+| `scripts/fork/`                   | **The fork pipeline** — fork, ablation arm, inspect, re-grade, compare                                                                        |
+| `scripts/eval/`                   | Judge-agnostic evaluation: re-grading, trajectory and judge-diff viewers                                                                      |
+| `scripts/data/`                   | Converters turning each benchmark into capsules + `ProblemInstance` jsonl                                                                     |
+| `proposer/`                       | Hypothesis-proposer subsystem: generate candidate hypotheses, then A/B whether showing the source paper helps                                 |
+| `rl/`                             | GRPO training stack — **incomplete, see below**                                                                                               |
+| `examples/cluster/`               | The run:ai orchestration we used. Site-specific reference, not a supported entry point                                                        |
+| `docs/patches.md`                 | Every local change to the upstream environment, with rationale and revert instructions                                                        |
 
 ### Supported benchmarks
 
