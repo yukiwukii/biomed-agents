@@ -1,0 +1,124 @@
+{
+  "capsule_id": "8c64b1fa-fdcc-41e2-be8d-2f0c8d5faaa1",
+  "mode": "preview",
+  "model": "claude-sonnet-4-6",
+  "status": "ok",
+  "error": null,
+  "n_input_files": 1,
+  "warnings": [],
+  "turns": 0,
+  "max_turns": null,
+  "expert_hypothesis": "OXTR knockdown induces significant neuronal damage across rodent species, as evidenced by decreased NeuN+ neuronal counts.",
+  "seed_listing": "",
+  "explore_steps": [],
+  "generation_prompt": "You are a computational biologist proposing testable scientific hypotheses for a benchmark.\n\nYou are given a description of the raw data files available in ONE \"capsule\" \u2014 the input data from a\nsingle biology study (e.g. RNA-seq counts, sample metadata, variant calls, single-cell data, sequences).\nThe original analysis, paper, and conclusions are hidden from you.\n\nYour task: from the data alone, infer the experimental design (what was measured; which groups,\nconditions, genotypes, or covariates exist; what modality), then propose 3 DISTINCT scientific\nhypotheses that could be tested using ONLY the files in this capsule.\n\nWhat makes a good hypothesis (match this style exactly):\n- A single declarative sentence stating a SPECIFIC, FALSIFIABLE claim \u2014 a real scientific bet that\n  could turn out either true or false once the analysis is run.\n- Names concrete biological entities that plausibly appear in the data: specific genes, mutations,\n  strains/genotypes, cell types, tissues, conditions/media, or named biological processes/pathways.\n- States a DIRECTION or RELATIONSHIP, e.g. \"X drives/increases/is required for Y\", \"the effect of X\n  on Y is environment-dependent\", or \"X is NOT explained by Y\". Negative / null-style claims are\n  welcome where the data supports testing them.\n- Is testable by a standard bioinformatics analysis (differential expression, enrichment,\n  association/regression, group comparison, etc.) on the PROVIDED data \u2014 no external datasets needed.\n\nAvoid:\n- Vague or guaranteed-true statements (\"there are differences between groups\"), pure method\n  descriptions, or meta commentary (\"this dataset could be used to ...\").\n- Hedging words (\"may\", \"might\", \"could suggest\").\n- Referencing file names or saying \"the data shows\".\n- Hypotheses that require data not present in this capsule.\n\nExample hypotheses from OTHER capsules, for style calibration only (do NOT reuse or adapt them):\n- \"Truncating ASXL1 mutations drive specific blood gene expression changes that reflect altered hematological and immune processes, including T cell and neutrophil activation.\"\n- \"Quorum sensing-mediated division of labor is environment-dependent: \u0394rhlI and \u0394lasI mutants exhibit altered downstream gene expression that varies across different media.\"\n- \"The elevated burden of somatic variants in CHIP genes observed in Bloom syndrome probands and carriers is not explained by an increased burden of germline variants in CHIP genes.\"\n\nReturn ONLY JSON of the form {\"hypotheses\": [\"...\", \"...\"]} with exactly 3 items, ordered from\nmost to least confidently testable given the available data.\n\n=== CAPSULE DATA FILES ===\n- NeuN_quantification.csv  [218B]\nSample,Hemispere,NeuN,Sex\n1,KD,221,M\n1,CTRL,237,M\n2,KD,233,F\n2,CTRL,223,F\n3,KD,221,M\n3,CTRL,246,M\n4,KD,215,F\n=== END CAPSULE DATA FILES ===\n",
+  "hypotheses": [
+    "Knockdown (KD) hemispheres contain significantly fewer NeuN-positive neurons than their paired contralateral control (CTRL) hemispheres within the same animal, indicating that the knockdown manipulation reduces neuronal survival or density.",
+    "The magnitude of NeuN-positive neuron loss in KD hemispheres relative to paired CTRL hemispheres is greater in male animals than in female animals, reflecting a sex-dependent vulnerability to the knockdown.",
+    "Baseline NeuN-positive neuron counts in CTRL hemispheres do not differ significantly between male and female animals, indicating that sex does not independently determine neuronal density under normal conditions in this brain region."
+  ],
+  "hypotheses_reasoning": "Let me analyze the data file carefully.\n\nThe file NeuN_quantification.csv contains:\n- Sample: paired samples (1-4)\n- Hemisphere: KD (knockdown?) or CTRL (control)\n- NeuN: a neuronal marker count (NeuN is a neuronal nuclear marker)\n- Sex: M or F\n\nThis appears to be a paired experimental design where each animal/subject has one hemisphere as KD (knockdown) and one hemisphere as CTRL (control). NeuN is a marker for neurons - these counts likely represent neuronal cell counts or density in brain tissue.\nNow I'm thinking through the key hypotheses: whether the knockdown reduces neuronal counts compared to control, whether sex modulates this effect, and whether there are baseline sex differences in the control hemispheres. These are testable predictions about how the KD manipulation affects neuronal survival or density across male and female subjects.",
+  "rubric_mode": "agent",
+  "rubrics": [
+    {
+      "hypothesis": "Knockdown (KD) hemispheres contain significantly fewer NeuN-positive neurons than their paired contralateral control (CTRL) hemispheres within the same animal, indicating that the knockdown manipulation reduces neuronal survival or density.",
+      "criteria": [
+        {
+          "points": 1,
+          "criterion": "Loads the data and correctly identifies the paired within-animal design: each Sample ID contributes exactly one KD hemisphere and one CTRL hemisphere, yielding 8 matched pairs; explicitly acknowledges Sex as a covariate present in the data."
+        },
+        {
+          "points": 1,
+          "criterion": "Reshapes or pivots the data to wide format (one row per animal) or explicitly computes within-animal differences (KD NeuN minus CTRL NeuN) for all 8 pairs, verifying no missing pairs before proceeding."
+        },
+        {
+          "points": 1,
+          "criterion": "Assesses the distributional assumption of the within-pair differences using a formal normality test (e.g., Shapiro-Wilk) or a visual diagnostic (e.g., Q-Q plot or histogram), and uses the result to justify the choice between a parametric paired t-test and a non-parametric Wilcoxon signed-rank test."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies the appropriate paired comparison test (paired t-test or Wilcoxon signed-rank test) directly on the 8 matched KD\u2013CTRL pairs (not an unpaired test on 16 independent observations), correctly specifying the one-sided or two-sided alternative and reporting the test statistic and p-value."
+        },
+        {
+          "points": 1,
+          "criterion": "Reports descriptive statistics for both groups (e.g., mean or median NeuN counts for KD and CTRL, mean or median within-pair difference) and applies a significance threshold of p < 0.05 to the single test result; notes that no multiple-testing correction is required for a single pre-specified comparison."
+        },
+        {
+          "points": 4,
+          "criterion": "Overall analysis is methodologically sound (paired design respected, appropriate test chosen, correct interpretation of directionality) and the accept/reject conclusion regarding whether KD hemispheres contain significantly fewer NeuN-positive neurons than CTRL hemispheres is explicitly stated and directly supported by the agent's own reported p-value and descriptive statistics."
+        }
+      ],
+      "rubric": "* 1 point: Loads the data and correctly identifies the paired within-animal design: each Sample ID contributes exactly one KD hemisphere and one CTRL hemisphere, yielding 8 matched pairs; explicitly acknowledges Sex as a covariate present in the data.\n* 1 point: Reshapes or pivots the data to wide format (one row per animal) or explicitly computes within-animal differences (KD NeuN minus CTRL NeuN) for all 8 pairs, verifying no missing pairs before proceeding.\n* 1 point: Assesses the distributional assumption of the within-pair differences using a formal normality test (e.g., Shapiro-Wilk) or a visual diagnostic (e.g., Q-Q plot or histogram), and uses the result to justify the choice between a parametric paired t-test and a non-parametric Wilcoxon signed-rank test.\n* 1 point: Applies the appropriate paired comparison test (paired t-test or Wilcoxon signed-rank test) directly on the 8 matched KD\u2013CTRL pairs (not an unpaired test on 16 independent observations), correctly specifying the one-sided or two-sided alternative and reporting the test statistic and p-value.\n* 1 point: Reports descriptive statistics for both groups (e.g., mean or median NeuN counts for KD and CTRL, mean or median within-pair difference) and applies a significance threshold of p < 0.05 to the single test result; notes that no multiple-testing correction is required for a single pre-specified comparison.\n* 4 points: Overall analysis is methodologically sound (paired design respected, appropriate test chosen, correct interpretation of directionality) and the accept/reject conclusion regarding whether KD hemispheres contain significantly fewer NeuN-positive neurons than CTRL hemispheres is explicitly stated and directly supported by the agent's own reported p-value and descriptive statistics.",
+      "max_points": 9,
+      "reasoning": "Let me analyze the data and hypothesis to create an appropriate grading rubric.\n\nThe data contains:\n- 8 animals (samples 1-8), each with paired KD and CTRL hemispheres\n- NeuN counts for each hemisphere\n- Sex covariate (M/F)\n- This is a paired design (within-animal comparison)\n\nThe hypothesis is testing whether KD hemispheres have significantly fewer NeuN-positive neurons than paired CTRL hemispheres.\n\nThe appropriate analysis pipeline:\n1. Load data, identify paired structure (same animal, KD vs CTRL hemispheres), note Sex as a covariate\n2. Compute within-animal differences (KD - CTRL) or reshape to wide format for paired analysis\n3. Run a paired t-test or Wilcoxon signed-rank test\u2014with 8 pairs, either approach works, though I should check normality assumptions first to decide between parametric and non-parametric options\n4. Report the test statistic, p-value, and effect direction, then state whether to accept or reject the hypothesis\n5. Since this is a single focused test, multiple comparison correction isn't necessary\n\nNow I'm designing the rubric to evaluate how well students execute this paired analysis. or reshape to wide format, then check whether the differences are normally distributed using a Shapiro-Wilk test to decide between a paired t-test and Wilcoxon signed-rank test. After running the appropriate test, I'll report the p-value against the 0.05 threshold along with the direction and magnitude of the effect. Since there's only one comparison being made, multiple testing correction isn't needed, and while sex could be a covariate, a straightforward paired test is sufficient given the small sample size and single hypothesis."
+    },
+    {
+      "hypothesis": "The magnitude of NeuN-positive neuron loss in KD hemispheres relative to paired CTRL hemispheres is greater in male animals than in female animals, reflecting a sex-dependent vulnerability to the knockdown.",
+      "criteria": [
+        {
+          "points": 1,
+          "criterion": "Loads the data and correctly identifies the paired experimental structure: each Sample ID contributes one KD hemisphere and one CTRL hemisphere, with Sex as the between-animal grouping variable (4 males, 4 females)."
+        },
+        {
+          "points": 1,
+          "criterion": "Computes a per-animal 'loss magnitude' score by taking the within-animal difference (CTRL NeuN minus KD NeuN, or equivalent signed/absolute metric) for each of the 8 animals, yielding 4 male difference scores and 4 female difference scores."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies an appropriate statistical test to compare male vs. female difference scores (e.g., two-sample t-test or Wilcoxon rank-sum test given n=4 per group), explicitly treating the per-animal difference as the unit of analysis rather than treating the 16 hemisphere observations as independent."
+        },
+        {
+          "points": 1,
+          "criterion": "Reports the group-level summary statistics (mean or median difference score for males and females separately) alongside the test statistic and p-value, and acknowledges the very small sample size (n=4 per sex) as a major limitation on statistical power."
+        },
+        {
+          "points": 1,
+          "criterion": "States a clear accept or reject conclusion regarding sex-dependent vulnerability, directly referencing whether the male loss magnitude is significantly greater than the female loss magnitude at a conventional threshold (e.g., p < 0.05), and notes that the small n renders the test underpowered regardless of direction."
+        },
+        {
+          "points": 3,
+          "criterion": "Overall analysis is sound: the paired within-animal difference is used as the analytic unit, the between-sex comparison uses an appropriate test, summary statistics are correctly computed, and the accept/reject conclusion is fully consistent with the agent's own numerical results."
+        }
+      ],
+      "rubric": "* 1 point: Loads the data and correctly identifies the paired experimental structure: each Sample ID contributes one KD hemisphere and one CTRL hemisphere, with Sex as the between-animal grouping variable (4 males, 4 females).\n* 1 point: Computes a per-animal 'loss magnitude' score by taking the within-animal difference (CTRL NeuN minus KD NeuN, or equivalent signed/absolute metric) for each of the 8 animals, yielding 4 male difference scores and 4 female difference scores.\n* 1 point: Applies an appropriate statistical test to compare male vs. female difference scores (e.g., two-sample t-test or Wilcoxon rank-sum test given n=4 per group), explicitly treating the per-animal difference as the unit of analysis rather than treating the 16 hemisphere observations as independent.\n* 1 point: Reports the group-level summary statistics (mean or median difference score for males and females separately) alongside the test statistic and p-value, and acknowledges the very small sample size (n=4 per sex) as a major limitation on statistical power.\n* 1 point: States a clear accept or reject conclusion regarding sex-dependent vulnerability, directly referencing whether the male loss magnitude is significantly greater than the female loss magnitude at a conventional threshold (e.g., p < 0.05), and notes that the small n renders the test underpowered regardless of direction.\n* 3 points: Overall analysis is sound: the paired within-animal difference is used as the analytic unit, the between-sex comparison uses an appropriate test, summary statistics are correctly computed, and the accept/reject conclusion is fully consistent with the agent's own numerical results.",
+      "max_points": 8,
+      "reasoning": "Let me analyze the hypothesis and data to create an appropriate grading rubric.\n\nThe hypothesis is: \"The magnitude of NeuN-positive neuron loss in KD hemispheres relative to paired CTRL hemispheres is greater in male animals than in female animals, reflecting a sex-dependent vulnerability to the knockdown.\"\n\nThe data has:\n- 8 samples (animals), each with paired KD and CTRL hemispheres\n- NeuN counts for each hemisphere\n- Sex (M or F) - 4 males and 4 females\n\nThe correct analysis pipeline:\n1. Load data and correctly identify paired structure (same animal has KD and CTRL hemisphere), sex variable\n2. Calculate the within-animal difference in NeuN counts between control and knockdown hemispheres for each animal to quantify the magnitude of neuronal loss\n3. Compare these difference scores between male and female groups using an appropriate statistical test like a t-test or Wilcoxon rank-sum test, given the small sample size of 4 per group\n4. Report the statistical result and draw a conclusion about whether males show greater vulnerability than females\n\nSince I'm working with just 4 animals per sex, multiple testing correction isn't necessary here. The key is correctly computing the paired differences, separating by sex, applying the right statistical test, and clearly reporting the findings."
+    },
+    {
+      "hypothesis": "Baseline NeuN-positive neuron counts in CTRL hemispheres do not differ significantly between male and female animals, indicating that sex does not independently determine neuronal density under normal conditions in this brain region.",
+      "criteria": [
+        {
+          "points": 1,
+          "criterion": "Loads the NeuN quantification data and correctly subsets to CTRL hemisphere rows only, identifying NeuN count as the outcome variable and Sex (M/F) as the sole grouping variable; confirms 4 male and 4 female CTRL observations."
+        },
+        {
+          "points": 1,
+          "criterion": "Computes and reports descriptive statistics (mean and SD or equivalent) for NeuN counts separately for male and female animals in the CTRL hemisphere."
+        },
+        {
+          "points": 1,
+          "criterion": "Applies an appropriate two-sample statistical test to compare CTRL NeuN counts between males and females \u2014 e.g., an independent-samples t-test or a non-parametric equivalent (Mann-Whitney U / Wilcoxon rank-sum) \u2014 and justifies or acknowledges the choice given the small sample size (n=4 per group)."
+        },
+        {
+          "points": 1,
+          "criterion": "Reports the exact test statistic and p-value from the comparison; explicitly notes that no multiple-testing correction is required because only a single comparison is performed."
+        },
+        {
+          "points": 3,
+          "criterion": "Overall analysis is methodologically sound (correct group definition, appropriate test, correct interpretation of the p-value relative to \u03b1=0.05), and the accept/reject conclusion about whether sex significantly affects baseline CTRL NeuN counts is clearly stated and directly supported by the agent's own reported results."
+        }
+      ],
+      "rubric": "* 1 point: Loads the NeuN quantification data and correctly subsets to CTRL hemisphere rows only, identifying NeuN count as the outcome variable and Sex (M/F) as the sole grouping variable; confirms 4 male and 4 female CTRL observations.\n* 1 point: Computes and reports descriptive statistics (mean and SD or equivalent) for NeuN counts separately for male and female animals in the CTRL hemisphere.\n* 1 point: Applies an appropriate two-sample statistical test to compare CTRL NeuN counts between males and females \u2014 e.g., an independent-samples t-test or a non-parametric equivalent (Mann-Whitney U / Wilcoxon rank-sum) \u2014 and justifies or acknowledges the choice given the small sample size (n=4 per group).\n* 1 point: Reports the exact test statistic and p-value from the comparison; explicitly notes that no multiple-testing correction is required because only a single comparison is performed.\n* 3 points: Overall analysis is methodologically sound (correct group definition, appropriate test, correct interpretation of the p-value relative to \u03b1=0.05), and the accept/reject conclusion about whether sex significantly affects baseline CTRL NeuN counts is clearly stated and directly supported by the agent's own reported results.",
+      "max_points": 7,
+      "reasoning": "Let me analyze the hypothesis and data to create an appropriate rubric.\n\nThe hypothesis is: Baseline NeuN-positive neuron counts in CTRL hemispheres do not differ significantly between male and female animals.\n\nKey aspects:\n1. Focus only on CTRL hemisphere data\n2. Compare NeuN counts between Male and Female animals\n3. Small sample size: 8 CTRL samples (4M, 4F)\n4. Each animal has both KD and CTRL hemispheres (paired data)\n\nThe correct analysis pipeline:\n1. Load data and filter to CTRL hemisphere only; identify NeuN counts for Male vs Female\n2. Check sample sizes and descriptive statistics for each sex group in CTRL\n3. With only 4 samples per sex, I should consider whether the data meets normality assumptions and choose between a parametric t-test or non-parametric Mann-Whitney U test accordingly\n4. Run the appropriate statistical test comparing Male versus Female CTRL NeuN counts and report the p-value with a clear conclusion\n5. Since this is a single comparison, no multiple testing correction is needed\n\nNow I'm structuring the rubric to evaluate the analysis, starting with data loading and filtering, then descriptive statistics... For NeuN counts in CTRL animals, I'll compute descriptive statistics (mean and SD) broken down by sex, then run an appropriate two-sample test like a t-test or Mann-Whitney U depending on the data distribution. I'll report the test statistic and p-value, and since this is a single comparison, no correction for multiple testing is needed\u2014the final conclusion should clearly reflect whether the p-value supports accepting or rejecting the null hypothesis."
+    }
+  ],
+  "rubric_explore_steps": [
+    {
+      "step": 1,
+      "code": "import pandas as pd\n\ndf = pd.read_csv('NeuN_quantification.csv')\nprint(df.shape)\nprint(df.dtypes)\nprint(df)\nprint(\"\\nUnique values:\")\nprint(\"Hemisphere:\", df['Hemispere'].unique())\nprint(\"Sex:\", df['Sex'].unique())\nprint(\"Sample IDs:\", df['Sample'].unique())\nprint(\"\\nNeuN stats:\", df['NeuN'].describe())\nprint(\"\\nCounts per Hemisphere:\", df['Hemispere'].value_counts())\nprint(\"Counts per Sex:\", df['Sex'].value_counts())",
+      "output": "[stdout]\n(16, 4)\nSample       int64\nHemispere      str\nNeuN         int64\nSex            str\ndtype: object\n    Sample Hemispere  NeuN Sex\n0        1        KD   221   M\n1        1      CTRL   237   M\n2        2        KD   233   F\n3        2      CTRL   223   F\n4        3        KD   221   M\n5        3      CTRL   246   M\n6        4        KD   215   F\n7        4      CTRL   179   F\n8        5        KD   216   M\n9        5      CTRL   198   M\n10       6        KD   208   F\n11       6      CTRL   194   F\n12       7        KD   202   M\n13       7      CTRL   200   M\n14       8        KD   200   F\n15       8      CTRL   208   F\n\nUnique values:\nHemisphere: <ArrowStringArray>\n['KD', 'CTRL']\nLength: 2, dtype: str\nSex: <ArrowStringArray>\n['M', 'F']\nLength: 2, dtype: str\nSample IDs: [1 2 3 4 5 6 7 8]\n\nNeuN stats: count     16.000000\nmean     212.562500\nstd       17.424002\nmin      179.000000\n25%      200.000000\n50%      211.500000\n75%      221.500000\nmax      246.000000\nName: NeuN, dtype: float64\n\nCounts per Hemisphere: Hemispere\nKD      8\nCTRL    8\nName: count, dtype: int64\nCounts per Sex: Sex\nM    8\nF    8\nName: count, dtype: int64\n",
+      "reasoning": "Let me explore this small CSV file to understand the data."
+    }
+  ]
+}

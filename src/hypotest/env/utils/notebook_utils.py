@@ -46,6 +46,10 @@ def limit_notebook_output(output: str | list[str]) -> str:
     output_length = len(output)
     if output_length < cfg.NB_OUTPUT_LIMIT:
         return output
+    # 2026-08-14: count truncations so a run can be told how often NB_OUTPUT_LIMIT
+    # actually bit (grep env logs for HYPOTEST_TRUNC). PYTHONUNBUFFERED is set on
+    # the env pod, so this reaches kubectl logs.
+    print(f"[HYPOTEST_TRUNC] cell output {output_length} -> {cfg.NB_OUTPUT_LIMIT} chars", flush=True)
     cutoff = int(cfg.NB_OUTPUT_LIMIT / 2)
     # Sometimes error tracebacks have important information at the end
     # and at the beginning so important to keep those sections

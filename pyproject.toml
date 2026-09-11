@@ -9,7 +9,7 @@ dev = [
 
 [project]
 authors = [
-    {email = "support@edisonscientific.com", name = "Edison Scientific Technical Staff"},
+    {email = "nadyayukiw@gmail.com", name = "yukiwukii"},
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -37,10 +37,10 @@ dependencies = [
     "ray",
     "tenacity>=8.0",
 ]
-description = "hypotest package"
+description = "Trajectory forking for agent evaluation: rewind a graded agent run to its first wrong step, inject judge feedback, and re-roll. Forked from EdisonScientific/hypotest."
 keywords = []
 maintainers = [
-    {email = "support@edisonscientific.com", name = "Edison Scientific Technical Staff"},
+    {email = "nadyayukiw@gmail.com", name = "yukiwukii"},
 ]
 name = "hypotest"
 readme = "README.md"
@@ -71,10 +71,20 @@ ray = [
     "ray",
 ]
 
+[project.scripts]
+hypotest-benchmark = "hypotest.benchmark_agent:cli"
+hypotest-server = "hypotest.dataset_server:cli"
+
 [tool.codespell]
 check-filenames = true
 check-hidden = true
-skip = "uv.lock"
+# Domain vocabulary and identifiers, not typos: OTU is an Operational Taxonomic
+# Unit, lasR is a Pseudomonas quorum-sensing gene, STING is the protein, `ans`
+# is an answer variable, and "unparseable" is a valid variant.
+ignore-words-list = "ans,lasr,otu,sting,unparseable"
+# Machine-generated records: benchmark task text and agent output. We did not
+# write this prose and must not "correct" it -- doing so would alter the data.
+skip = "uv.lock,rl/data/*,proposer/*,capsules/*,archive/*,./rl/data/*,./proposer/*,./capsules/*,./archive/*"
 
 [tool.coverage]
 
@@ -121,6 +131,26 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = "datasets"
+
+# Optional, environment-specific dependencies. torch and transformers only exist
+# inside the training container; openpyxl and pypdf are pulled in on demand by the
+# proposer when a capsule ships a spreadsheet or a paper PDF. None are runtime
+# requirements of the package, so they are absent from a normal install.
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "openpyxl",
+    "openpyxl.*",
+    "pypdf",
+    "pypdf.*",
+    "torch",
+    "torch.*",
+    "torch.distributed.*",
+    "torch.distributed.tensor.parallel",
+    "torch.distributed.tensor.placement_types",
+    "transformers",
+    "transformers.*",
+]
 
 [tool.pylint]
 
@@ -219,6 +249,12 @@ ignore = [
 ]
 
 [tool.ruff]
+# Exploratory analysis notebooks are an experiment record, not source we hold to
+# library formatting. Reformatting them churns the artifact for no benefit.
+extend-exclude = [
+    "notebook/",
+    "tests/assets/",
+]
 line-length = 120
 unsafe-fixes = true
 
@@ -428,15 +464,60 @@ unfixable = [
 mypy-init-return = true
 
 [tool.ruff.lint.per-file-ignores]
+"**/benchmark_agent.py" = [
+    "ARG002",  # ldp Callback signatures are fixed by the framework
+    "PLC0415",  # litellm import is deferred on purpose, to suppress its import-time noise
+    "PLR0914",  # main() is a linear pipeline; splitting it would not make it clearer
+    "S110",  # the try/except/pass only silences optional log-noise suppression
+]
+"**/dataset_server.py" = [
+    "PLC0415",  # see benchmark_agent.py
+    "S110",
+]
+"**/env/biomni_judge.py" = [
+    "E501",  # verbatim prompt text from the original biomni judge
+    "PLR0912",  # level/score mapping is inherently branchy
+]
+"**/env/interpreter_env.py" = [
+    "S108",  # "/tmp" here is a container path, not a host tempfile
+]
+"**/env/judges/*.py" = [
+    "ARG001",  # judge signature is uniform; deterministic judges ignore `model`
+    "ASYNC109",  # `timeout` is part of the shared judge protocol
+    "D210",
+    "PLR0911",  # verdict mapping is a flat series of early returns, which is the clearest form
+    "RUF001",  # U+2212 MINUS SIGN is deliberate: verifiers must parse it in model output
+    "RUF029",  # ditto: async is required by the protocol even when a judge needs no await
+]
 "**/prompts.py" = [
     "E501",
 ]
 "**/tests/*.py" = [
+    "ARG002",  # stub doubles must match the real signature they stand in for
+    "ASYNC109",  # ditto: `timeout` is part of the model protocol being stubbed
     "N802",
+    "PLC2701",  # tests legitimately reach for private helpers
     "PLR0914",
     "PLR1702",
     "PLR2004",
     "PLR6301",
+]
+# Research and operations code, not library code. These are one-purpose scripts
+# and experiment records: long literal prompts, `open()` without a context
+# manager in throwaway loaders, deliberately deferred heavy imports, and
+# functions that are long because the pipeline they describe is long. Held to
+# correctness (mypy still runs) but not to library ergonomics.
+"notebook/**" = [
+    "ALL",
+]
+"proposer/**" = [
+    "ALL",
+]
+"rl/**" = [
+    "ALL",
+]
+"scripts/**" = [
+    "ALL",
 ]
 
 [tool.ruff.lint.pycodestyle]

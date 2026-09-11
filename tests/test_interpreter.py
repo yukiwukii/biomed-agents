@@ -11,6 +11,53 @@ from hypotest.env.kernel_server import MessageType, NBLanguage
 
 from .conftest import requires_matplotlib
 
+_PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+
+class TestStripImages:
+    """cfg.STRIP_IMAGES: images must not reach the policy by default.
+
+    A base64 plot is tokenized as text by a policy served without a vision tower,
+    which cost ~101k-195k tokens per figure and killed episodes on the context
+    limit. These assert the default, unlike the ``images_enabled`` tests which
+    assert the opt-out.
+    """
+
+    @staticmethod
+    def _result_with_image() -> ExecutionResult:
+        return ExecutionResult(
+            notebook_outputs=[
+                nbformat.v4.new_output(
+                    output_type="display_data",
+                    data={"image/png": _PNG_1X1, "text/plain": "<Figure size 640x480>"},
+                    metadata={},
+                )
+            ]
+        )
+
+    def test_images_are_stripped_by_default(self):
+        result = self._result_with_image()
+        assert result.get_images() == []
+        assert not result.has_images()
+
+    def test_placeholder_replaces_the_image(self):
+        combined = self._result_with_image().get_combined_text()
+        assert "suppressed" in combined
+        assert _PNG_1X1 not in combined
+        # the cell's own text output must still come through
+        assert "<Figure size 640x480>" in combined
+
+    def test_notebook_keeps_the_image(self):
+        """Stripping is for the model's view only; the saved record is untouched."""
+        result = self._result_with_image()
+        assert result.notebook_outputs[0]["data"]["image/png"] == _PNG_1X1
+
+    @pytest.mark.usefixtures("images_enabled")
+    def test_opt_out_restores_images(self):
+        result = self._result_with_image()
+        assert result.has_images()
+        assert result.get_images() == [("image/png", _PNG_1X1)]
+
 
 class TestExecutionResult:
     """Tests for the ExecutionResult class."""
@@ -33,6 +80,7 @@ class TestExecutionResult:
         assert "[stdout]\nline1" in combined
         assert "line2" in combined
 
+    @pytest.mark.usefixtures("images_enabled")
     def test_get_combined_text_with_image_output(self):
         """Test get_combined_text includes [Image generated] for image outputs."""
         display_data = nbformat.v4.new_output(
@@ -49,6 +97,7 @@ class TestExecutionResult:
         result = ExecutionResult()
         assert not result.has_images()
 
+    @pytest.mark.usefixtures("images_enabled")
     def test_has_images_true(self):
         """Test has_images when images present in notebook_outputs."""
         # Minimal valid base64 PNG (1x1 transparent pixel)
@@ -82,6 +131,7 @@ class TestExecutionResult:
         assert message["content"][0]["type"] == "text"
         assert "hello world" in message["content"][0]["text"]
 
+    @pytest.mark.usefixtures("images_enabled")
     def test_to_message_with_images(self):
         """Test to_message with text and images."""
         # Minimal valid base64 PNG for testing (1x1 transparent pixel)
@@ -116,6 +166,7 @@ class TestExecutionResult:
         assert "ValueError" in error_msg
         assert "test error" in error_msg
 
+    @pytest.mark.usefixtures("images_enabled")
     def test_get_images_returns_tuples(self):
         """Test that get_images returns list of (mime_type, base64_data) tuples."""
         test_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -616,6 +667,7 @@ display("Hello from display")
             finally:
                 await interpreter.close()
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_execute_code_with_plot(self):

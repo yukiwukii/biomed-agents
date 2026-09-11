@@ -131,15 +131,56 @@ cython_debug/
 *.secrets.*
 .secrets
 *.pem
+# The detect-secrets baseline is the opposite of a secret: it records the
+# hashes of known false positives so the hook can ignore them. It is tracked.
+!.secrets.baseline
 
-server.yaml
+# Real secrets live in .env (already ignored above by the Python block).
+# .env.example is tracked and must stay that way.
+.env.local
+.env.*.local
+!.env.example
+
+# Local run configs. The tracked templates are *.example.yaml; anything you
+# actually point at a server or a model endpoint stays local, because it ends up
+# holding host IPs and API keys.
+server*.yaml
+benchmark*.yaml
+!*.example.yaml
+
+# Generated data products, not source
+original_rubrics.json
 
 # Large local data / run outputs (never commit)
 capsules/
 tmp/
 archive/
-proposer/
 cache/
+logs/
+results/
+
+# RL / GRPO training stack. The source (configs, data splits, scripts, docker) is
+# tracked; see the README for what still needs work before it runs elsewhere.
+#
+# NEVER un-ignore submit.env: it holds live ANTHROPIC / OPENAI / OPENROUTER / HF
+# and WANDB keys. submit.env.example is the tracked template.
+rl/runai/submit.env
+rl/.kaniko/
+
+# Training run output (886 result dirs) and saved LoRA adapters + optimizer
+# state (219 MB). Artifacts, not source.
+rl/results/
+rl/models/
+
+# Internal engineering notes: cluster topology, run diaries, handoffs and
+# work-in-progress. Public documentation lives in README.md.
+#
+# docs/* rather than docs/, because git cannot re-include a file whose parent
+# directory is excluded -- patches.md has to stay reachable. It is the record of
+# how this fork diverges from upstream, and the "PATCH N" markers throughout
+# src/ point at it.
+docs/*
+!docs/patches.md
 
 # Local virtualenvs not matched by the .venv rule
 .venv_policy/
@@ -150,3 +191,7 @@ cache/
 
 # Generated trajectory viewers (multi-MB)
 /*.html
+
+# proposer A/B-test run output: contains dangling capsules_subset symlinks that
+# point at a local absolute path and resolve nowhere. Kept local.
+proposer/ab-test/

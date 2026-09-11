@@ -25,7 +25,7 @@ from hypotest.env.interpreter_env import (
 )
 from hypotest.env.kernel_server import NBLanguage
 
-from .conftest import requires_matplotlib, should_skip_docker_test
+from .conftest import requires_matplotlib, requires_openai, should_skip_docker_test
 
 
 @pytest_asyncio.fixture
@@ -228,6 +228,7 @@ class TestInterpreterEnv:
         assert len(interpreter_env.state.nb.cells) == 2
         assert interpreter_env.state.nb.cells[0].source == "x = 42"
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_interpreter_env_run_cell_with_images(self, interpreter_env: InterpreterEnv):
@@ -392,6 +393,7 @@ class TestInterpreterEnvRunCell:
         assert interpreter_env.state is not None
         assert len(interpreter_env.state.nb.cells) == 1
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_run_cell_with_images(self, interpreter_env: InterpreterEnv):
@@ -450,7 +452,7 @@ class TestInterpreterEnvRunCell:
 
         original_execute = interpreter_env.state.execute_and_add_cell
 
-        async def mock_execute_and_add_cell(code, cell_idx=None, timeout=None):  # noqa: ASYNC109
+        async def mock_execute_and_add_cell(code, cell_idx=None, timeout=None):
             nonlocal captured_timeout
             captured_timeout = timeout
             return await original_execute(code, cell_idx, timeout)
@@ -488,6 +490,7 @@ def create_test_png_file(path: pathlib.Path) -> None:
 class TestMultimodalToolOutputs:
     """Tests for multimodal tool outputs via step() method."""
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.asyncio
     async def test_step_run_cell_with_plot_returns_correct_multimodal_format(self, interpreter_env: InterpreterEnv):
@@ -651,6 +654,7 @@ class TestInterpreterEnvDocker:
             finally:
                 await state.close()
 
+    @pytest.mark.usefixtures("images_enabled")
     @requires_matplotlib
     @pytest.mark.parametrize("use_docker", [False, True])
     @pytest.mark.asyncio
@@ -883,6 +887,7 @@ class TestRubricGrading:
             ),
         ],
     )
+    @requires_openai
     async def test_rubric_grading(self, code: list[str], answer: str):
         """Test rubric-based grading with gpt-5-mini."""
         rubric_model = LiteLLMModel(name="openai/gpt-5-mini")

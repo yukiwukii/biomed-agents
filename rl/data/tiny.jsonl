@@ -1,0 +1,4 @@
+{"task_idx": 0, "responses_create_params": {"input": []}, "agent_ref": {"type": "responses_api_agents", "name": "hypotest_agent"}}
+{"task_idx": 1, "responses_create_params": {"input": []}, "agent_ref": {"type": "responses_api_agents", "name": "hypotest_agent"}}
+{"task_idx": 2, "responses_create_params": {"input": []}, "agent_ref": {"type": "responses_api_agents", "name": "hypotest_agent"}}
+{"task_idx": 3, "responses_create_params": {"input": []}, "agent_ref": {"type": "responses_api_agents", "name": "hypotest_agent"}}

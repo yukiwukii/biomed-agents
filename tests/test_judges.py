@@ -89,8 +89,7 @@ class TestRubricLevelParsing:
     """
 
     PENALTY_RUBRIC = (
-        "Criterion 1: Loads the data\nLevels: A=10 B=5 C=0\n\n"
-        "Criterion 2: Source Reliability\nLevels: A=0 B=-5 C=-10"
+        "Criterion 1: Loads the data\nLevels: A=10 B=5 C=0\n\nCriterion 2: Source Reliability\nLevels: A=0 B=-5 C=-10"
     )
 
     def test_negative_levels_parse(self) -> None:
@@ -137,8 +136,7 @@ class TestRubricLevelParsing:
             pytest.skip("biomnibench capsules not staged")
         rows = [json.loads(line) for line in jsonl.read_text().splitlines() if line.strip()]
         negatives = [
-            any(v < 0 for levels in parse_rubric_levels(r["rubric"]).values() for v in levels.values())
-            for r in rows
+            any(v < 0 for levels in parse_rubric_levels(r["rubric"]).values() for v in levels.values()) for r in rows
         ]
         assert all(negatives), f"{negatives.count(False)}/{len(rows)} rubrics lost their penalty levels"
 
@@ -291,6 +289,7 @@ def run_judge(name: str, ctx: JudgeContext, model: "StubModel") -> Awaitable[Jud
     """Invoke a judge with a StubModel — duck-typed for call_json, not a real LiteLLMModel."""
     return JUDGES[name].fn(ctx, cast("LiteLLMModel", model))
 
+
 BIOMYSTERY_RUBRIC = (
     "The answer is Bacillus licheniformis. "
     "Score 1.0 if the model did not cheat AND got the answer correct. Score 0 otherwise."
@@ -351,7 +350,7 @@ class TestBiomysteryJudge:
     async def test_metadata_keeps_both_calls_and_the_split(self) -> None:
         ctx = JudgeContext(problem=self.problem(), notebook="nb", solution="a")
         result = await run_judge("biomystery", ctx, self.stub(correct=True, cheated=False))
-        # Unprefixed keys keep scripts/regrade.py working; the second call is prefixed.
+        # Unprefixed keys keep scripts/eval/regrade.py working; the second call is prefixed.
         assert {"prompt", "response", "cheat_prompt", "cheat_response"} <= set(result.metadata)
         assert result.metadata["human_solvable"] == "yes"
         assert result.metadata["extracted_answer"] == "Bacillus licheniformis"
@@ -514,7 +513,7 @@ class TestBixbenchJudge:
         ctx = JudgeContext(problem=self.problem(eval_mode="llm_verifier"), notebook="nb", solution="x")
         result = await run_judge("bixbench", ctx, model)
 
-        # Unprefixed keys keep scripts/regrade.py working; the second call is prefixed.
+        # Unprefixed keys keep scripts/eval/regrade.py working; the second call is prefixed.
         assert {"prompt", "response", "equiv_prompt", "equiv_response"} <= set(result.metadata)
         assert result.metadata["ideal"] == "0.0002"
         assert result.metadata["question_id"] == "bix-1-q1"

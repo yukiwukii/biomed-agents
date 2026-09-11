@@ -11,15 +11,17 @@ emit an integer score per criterion directly).
 This module is pure (stdlib only — no LLM client, no I/O) so it can be shared by:
   - ``InterpreterEnv._score_solution`` — live grading, auto-selected for
     biomni-style rubrics (see ``is_biomni_rubric``).
-  - ``scripts/biomni_judge.py`` — offline re-grading of saved runs, and grading
+  - ``scripts/eval/biomni_judge.py`` — offline re-grading of saved runs, and grading
     native BiomniBench-DA ``trace.md`` / ``answer.txt`` files.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +75,13 @@ Evaluate the agent's work using the following rubric:
 Here is the agent's analysis trace:
 
 <trace>
-{trace if trace else "[No trace file provided]"}
+{trace or "[No trace file provided]"}
 </trace>
 
 Here is the agent's final answer:
 
 <answer>
-{answer if answer else "[No answer file provided]"}
+{answer or "[No answer file provided]"}
 </answer>
 
 For each criterion in the rubric, choose ONE level: A, B, or C — based purely on which level description best describes the agent's work. Do not output numerical points; the score for each level is computed automatically from the rubric.
@@ -113,7 +115,7 @@ def _extract_json_object(text: str) -> dict:
     return json.loads(text[start:])  # unbalanced — let json raise
 
 
-def score_rich_levels(criteria: list[dict], rubric: str) -> int:
+def score_rich_levels(criteria: list[Any], rubric: str) -> int:
     """Map each rich criterion's A/B/C ``level`` → points via the rubric's ``Levels:`` table.
 
     For the biomni grading path that emits hypotest's *rich* rubric schema (a list of
@@ -129,11 +131,13 @@ def score_rich_levels(criteria: list[dict], rubric: str) -> int:
     """
     try:
         level_maps = list(parse_rubric_levels(rubric).values())
-    except Exception as parse_err:  # noqa: BLE001
+    except Exception as parse_err:
         logger.warning("failed to parse rubric levels: %s", parse_err)
         level_maps = []
     total = 0
     for i, c in enumerate(criteria):
+        # criteria is parsed from model output, so a malformed entry is possible
+        # even though the happy path is always a dict. Skip rather than raise.
         if not isinstance(c, dict):
             continue
         allowed = level_maps[i] if i < len(level_maps) else {}
@@ -164,7 +168,7 @@ def score_from_response(response_text: str, rubric: str) -> tuple[int, dict, str
 
         try:
             criterion_levels = parse_rubric_levels(rubric)
-        except Exception as parse_err:  # noqa: BLE001
+        except Exception as parse_err:
             logger.warning("failed to parse rubric levels: %s", parse_err)
             criterion_levels = {}
 
@@ -189,10 +193,8 @@ def score_from_response(response_text: str, rubric: str) -> tuple[int, dict, str
             total = 0
             for c in criteria.values():
                 if isinstance(c, dict):
-                    try:
+                    with contextlib.suppress(TypeError, ValueError):
                         total += int(c.get("score", 0))
-                    except (TypeError, ValueError):
-                        pass
         else:
             total = int(result.get("total_score", result.get("score", 0)))
 

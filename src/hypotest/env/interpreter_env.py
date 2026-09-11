@@ -46,7 +46,7 @@ from . import config as cfg
 from .code_safety import check_code_safety
 from .config import ExecutionConfig
 from .interpreter import ExecutionResult, Interpreter
-from .judges import JudgeContext, derive_first_wrong_step, parse_criterion_max_scores, resolve_judge
+from .judges import JudgeContext, derive_first_wrong_step, resolve_judge
 from .judges.biomni import CriterionLevelScore, RubricLevelScore  # noqa: F401  (re-exported)
 from .judges.hypotest_judge import CriterionScore, RubricScore  # noqa: F401  (re-exported)
 from .problem import ProblemInstance
@@ -369,7 +369,7 @@ class EnrootKernelServer:
     @staticmethod
     def _setup_enroot_env(startup_token: str) -> dict[str, str]:
         """Create enroot runtime directories and return env dict."""
-        base = Path(f"/tmp/enroot_data/{startup_token}")  # noqa: S108
+        base = Path(f"/tmp/enroot_data/{startup_token}")
         subdirs = ["runtime", "config", "cache", "data", "tmp"]
         env_keys = [
             "ENROOT_RUNTIME_PATH",
@@ -1389,9 +1389,7 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
                 # R library path for user-installed packages
                 "R_LIBS_USER": str(kernel_env_path / "lib" / "R" / "library"),
                 # Ensure conda-installed shared libs (e.g. libzmq) are found
-                "LD_LIBRARY_PATH": (
-                    str(kernel_env_path / "lib") + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
-                ),
+                "LD_LIBRARY_PATH": (str(kernel_env_path / "lib") + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")),
                 # parso/IPython need a writable HOME to cache grammar files
                 "HOME": os.environ.get("HOME", "/tmp"),
             }
@@ -1658,9 +1656,7 @@ class InterpreterEnv(Environment[InterpreterEnvState]):
         #     if response: parts.append(f"Rubric evaluation:\n{response}")
         criteria = self.state.score_metadata.get("criteria")
         payload = (
-            json.dumps({"criteria": criteria}, indent=2)
-            if criteria
-            else self.state.score_metadata.get("response", "")
+            json.dumps({"criteria": criteria}, indent=2) if criteria else self.state.score_metadata.get("response", "")
         )
         if payload:
             parts.append(f"Rubric evaluation:\n{payload}")

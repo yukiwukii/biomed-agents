@@ -1,0 +1,53 @@
+# Dataset-server config. Copy to server.yaml (gitignored) and edit.
+#   hypotest-server server.yaml       # or: make server CONFIG=server.yaml
+#
+# The server hands out one InterpreterEnv per rollout: it copies a task capsule
+# into a scratch work_dir, runs a Jupyter kernel against it, and grades the
+# submitted answer with rubric_model.
+
+dataset:
+  # Where the task capsules live. Each task is one CapsuleData-<uuid>/ folder
+  # DIRECTLY inside this directory -- point at the folder that contains them,
+  # not at its parent. Download with:
+  #   hf sync hf://buckets/EdisonScientific/bixbench-hypothesis-capsules capsules/hypotest/
+  capsule_dir: capsules/hypotest
+
+  # Problem source: either a HuggingFace dataset or a local jsonl. Exactly one.
+  hf_dataset: EdisonScientific/bixbench_hypothesis
+  # problem_jsonl: capsules/bixbench/bixbench.jsonl
+
+  # Whether the task's analysis protocol is included in the agent's prompt.
+  #
+  # IMPORTANT WHEN FORKING: this must match the run you are forking. A fork
+  # replays the parent's actions against a freshly built environment, so if the
+  # prompt differs, you are replaying those actions against a different task.
+  include_protocol: true
+
+  # Cap the dataset for a smoke test. Remove for a real run -- and note that
+  # forking needs the FULL dataset, since a fork addresses its task by index and
+  # a capped dataset puts higher indices out of range.
+  # max_problems: 2
+
+  save_dir: results/ # graded artifacts: notebook + score_info.json per rollout
+  work_dir: tmp/ # scratch capsule copies; each is up to ~1 GB
+
+  execution_config:
+    cell_execution_timeout: 600
+
+  # The judge. Requires the matching API key -- see .env.example. Without it
+  # every episode scores 0.0 rather than erroring.
+  rubric_model: claude-sonnet-4-6
+  rubric_model_config:
+    model_list:
+      - model_name: claude-sonnet-4-6
+        litellm_params:
+          model: anthropic/claude-sonnet-4-6
+          reasoning_effort: high
+      - model_name: gpt-5.4-mini
+        litellm_params:
+          model: gpt-5.4-mini
+
+# Shared secret; must match api_key in your benchmark config. The server binds
+# 0.0.0.0, so do not leave this at the example value on a shared machine.
+api_key: HYPOTEST_API_KEY # a bare name is read from the environment
+port: 8008

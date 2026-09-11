@@ -1,0 +1,44 @@
+# Benchmark-client config. Copy to benchmark.yaml (gitignored) and edit.
+#   hypotest-benchmark benchmark.yaml
+#
+# Writes rewards.json and trajectories.pkl into results_dir. Those two files are
+# exactly what scripts/fork/fork_trajectory.py consumes, together with the
+# per-rollout score_info.json the server wrote into its own save_dir.
+
+server_url: http://localhost:8008
+api_key: HYPOTEST_API_KEY # a bare name is read from the environment; must match the server
+
+results_dir: benchmark_results/
+
+num_parallel: 16
+# k in pass@k / avg@k. Forking is most informative with k > 1, because it shows
+# whether a task that never passed in k tries becomes reachable with feedback.
+num_replications: 3
+
+# Must exceed the server's cell_execution_timeout plus margin, or a long but
+# legal cell is killed client-side with a read timeout.
+request_timeout: 960
+
+agent_config:
+  agent_kwargs:
+    llm_model:
+      name: gpt-5.4-mini
+      temperature: 1.0
+      timeout: 600
+      config:
+        model_list:
+          - model_name: gpt-5.4-mini
+            litellm_params:
+              model: gpt-5.4-mini
+              timeout: 600
+              temperature: 1.0
+              reasoning_effort: medium
+
+        # To drive a locally served policy (vLLM etc.), add it here and set
+        # llm_model.name above to match. api_base is per-deployment, so keep
+        # it out of version control.
+        # - model_name: my-local-policy
+        #   litellm_params:
+        #     model: openai/Qwen/Qwen3.6-27B
+        #     api_base: http://<host>:8000/v1
+        #     api_key: none
