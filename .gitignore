@@ -131,6 +131,9 @@ cython_debug/
 *.secrets.*
 .secrets
 *.pem
+# The detect-secrets baseline is the opposite of a secret: it records the
+# hashes of known false positives so the hook can ignore them. It is tracked.
+!.secrets.baseline
 
 # Real secrets live in .env (already ignored above by the Python block).
 # .env.example is tracked and must stay that way.

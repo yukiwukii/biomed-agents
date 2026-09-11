@@ -49,8 +49,14 @@ repos:
       - id: detect-secrets
         additional_dependencies: [".[word_list]"]
         args:
+          - --baseline=.secrets.baseline
           - --exclude-files=.secrets.baseline$
+          # Notebook outputs, and the proposer's run dumps that embed the same
+          # outputs as JSON, are full of DNA reads and FASTQ quality strings.
+          # The entropy and AWS-key detectors flag those by the hundred, and
+          # nothing in them is authored, so scan the code instead.
           - --exclude-files=.*\.ipynb$
+          - --exclude-files=^proposer/.*\.json$
   - repo: https://github.com/pappasam/toml-sort
     rev: v0.24.3
     hooks:
